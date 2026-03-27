@@ -1,0 +1,7 @@
+// para ocultar carpetas y archivos
+{
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/__init__.py": true
+  }
+}
