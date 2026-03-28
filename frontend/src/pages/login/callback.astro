@@ -1,0 +1,71 @@
+---
+// src/pages/login/callback.astro - Maneja el callback de Google OAuth
+import Layout from '../../layouts/Layout.astro';
+
+// Obtener el código de autorización de Google
+const url = new URL(Astro.request.url);
+const code = url.searchParams.get('code');
+const error = url.searchParams.get('error');
+
+if (error) {
+	// Manejar error de Google OAuth
+	return new Response(`
+		<html>
+			<body>
+				<script>
+					localStorage.setItem('google_auth_error', '${error}');
+					window.location.href = '/login';
+				</script>
+			</body>
+		</html>
+	`, {
+		headers: { 'Content-Type': 'text/html' }
+	});
+}
+
+if (!code) {
+	// Redireccionar si no hay código
+	return Astro.redirect('/login');
+}
+
+// Renderizar página que procesará el código
+---
+
+<Layout title="Procesando autenticación">
+	<div class="min-h-screen flex items-center justify-center">
+		<div class="text-center">
+			<div class="inline-block animate-spin text-4xl mb-4">⏳</div>
+			<h2 class="text-xl font-semibold text-gray-900">Procesando autenticación con Google...</h2>
+			<p class="mt-2 text-gray-600">Por favor espera un momento.</p>
+		</div>
+		
+		<!-- Script para procesar el código del cliente -->
+		<script>
+			// Importar el componente de Google Button para usar su función de callback
+			async function processGoogleAuth() {
+				const code = new URLSearchParams(window.location.search).get('code');
+				
+				if (code) {
+					try {
+						// Llamar a una función global que será definida por el componente
+						if (window.handleGoogleCallback) {
+							await window.handleGoogleCallback(code);
+						} else {
+							// Si la función no está disponible, redireccionar al login
+							window.location.href = '/login';
+						}
+					} catch (error) {
+						console.error('Error en autenticación:', error);
+						localStorage.setItem('google_auth_error', error.message);
+						window.location.href = '/login';
+					}
+				} else {
+					window.location.href = '/login';
+				}
+			}
+			
+			// Procesar cuando la página cargue
+			document.addEventListener('DOMContentLoaded', processGoogleAuth);
+		</script>
+	</div>
+</Layout>

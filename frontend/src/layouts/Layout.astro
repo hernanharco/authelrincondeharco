@@ -1,0 +1,28 @@
+---
+// src/layouts/Layout.astro
+import '../styles/global.css';
+export interface Props {
+	title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="description" content="Astro + Svelte 5 Auth System" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title}</title>
+
+		<!-- Tailwind CSS ya está importado via global.css -->
+	</head>
+	<body class="min-h-screen bg-gray-50">
+		<main class="min-h-screen">
+			<slot />
+		</main>
+	</body>
+</html>
