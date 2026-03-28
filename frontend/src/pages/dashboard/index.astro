@@ -1,0 +1,176 @@
+---
+// src/pages/dashboard/index.astro
+import Layout from '../../layouts/Layout.astro';
+import { authService, type User } from '../../services/authService';
+
+// Obtener información del usuario autenticado
+let user: User | null = null;
+let isLoading = true;
+
+try {
+	// Verificar que existe la cookie de sesión
+	if (!Astro.cookies.has('session')) {
+		return Astro.redirect('/login');
+	}
+	
+	// Obtener información del usuario desde el backend
+	user = await authService.getCurrentUser();
+	isLoading = false;
+	
+	// Si no se puede obtener el usuario, redireccionar al login
+	if (!user) {
+		return Astro.redirect('/login');
+	}
+} catch (error) {
+	console.error('Error al obtener usuario:', error);
+	return Astro.redirect('/login');
+}
+---
+
+<Layout title="Dashboard - AuthCore">
+	<div class="min-h-screen bg-gray-50">
+		<!-- Header -->
+		<header class="bg-white shadow">
+			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+				<div class="flex justify-between items-center py-6">
+					<h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
+					
+					{user && (
+						<div class="flex items-center space-x-4">
+							<span class="text-sm text-gray-700">
+								Bienvenido, {user.full_name || user.username}
+							</span>
+							<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+								{user.role}
+							</span>
+							<form action="/logout" method="post">
+								<button 
+									type="submit"
+									class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+								>
+									Cerrar Sesión
+								</button>
+							</form>
+						</div>
+					)}
+				</div>
+			</div>
+		</header>
+
+		<!-- Main Content -->
+		<main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+			<div class="px-4 py-6 sm:px-0">
+				{user ? (
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+						<!-- Tarjeta de información del usuario -->
+						<div class="bg-white overflow-hidden shadow rounded-lg">
+							<div class="p-5">
+								<div class="flex items-center">
+									<div class="shrink-0">
+										<div class="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center">
+											<span class="text-white font-medium">
+												{user.username.charAt(0).toUpperCase()}
+											</span>
+										</div>
+									</div>
+									<div class="ml-5 w-0 flex-1">
+										<dl>
+											<dt class="text-sm font-medium text-gray-500 truncate">
+												Usuario
+											</dt>
+											<dd class="text-lg font-medium text-gray-900">
+												{user.username}
+											</dd>
+										</dl>
+									</div>
+								</div>
+							</div>
+							<div class="bg-gray-50 px-5 py-3">
+								<div class="text-sm">
+									<span class="text-gray-500">Email: </span>
+									<span class="font-medium text-gray-900">{user.email}</span>
+								</div>
+								<div class="text-sm mt-1">
+									<span class="text-gray-500">Estado: </span>
+									<span class={`font-medium ${
+										user.status === 'active' ? 'text-green-600' : 'text-red-600'
+									}`}>
+										{user.status === 'active' ? 'Activo' : 'Inactivo'}
+									</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- Tarjeta de estadísticas -->
+						<div class="bg-white overflow-hidden shadow rounded-lg">
+							<div class="p-5">
+								<div class="flex items-center">
+									<div class="flex-shrink-0 bg-indigo-500 rounded-md p-3">
+										<svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+										</svg>
+									</div>
+									<div class="ml-5 w-0 flex-1">
+										<dl>
+											<dt class="text-sm font-medium text-gray-500 truncate">
+												Panel de Control
+											</dt>
+											<dd class="text-lg font-medium text-gray-900">
+												Bienvenido
+											</dd>
+										</dl>
+									</div>
+								</div>
+							</div>
+							<div class="bg-gray-50 px-5 py-3">
+								<div class="text-sm text-gray-500">
+									Sistema de autenticación con Astro + Svelte 5
+								</div>
+							</div>
+						</div>
+
+						<!-- Tarjeta de acciones rápidas -->
+						<div class="bg-white overflow-hidden shadow rounded-lg">
+							<div class="p-5">
+								<div class="flex items-center">
+									<div class="flex-shrink-0 bg-green-500 rounded-md p-3">
+										<svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+										</svg>
+									</div>
+									<div class="ml-5 w-0 flex-1">
+										<dl>
+											<dt class="text-sm font-medium text-gray-500 truncate">
+												Acciones Rápidas
+											</dt>
+											<dd class="text-lg font-medium text-gray-900">
+												Accesos
+											</dd>
+										</dl>
+									</div>
+								</div>
+							</div>
+							<div class="bg-gray-50 px-5 py-3 space-y-2">
+								<a href="/dashboard/profile" class="block text-sm text-blue-600 hover:text-blue-500">
+									→ Mi Perfil
+								</a>
+								<a href="/dashboard/settings" class="block text-sm text-blue-600 hover:text-blue-500">
+									→ Configuración
+								</a>
+							</div>
+						</div>
+					</div>
+				) : isLoading ? (
+					<div class="text-center py-12">
+						<div class="inline-block animate-spin text-4xl">⏳</div>
+						<p class="mt-4 text-gray-600">Cargando información...</p>
+					</div>
+				) : (
+					<div class="text-center py-12">
+						<p class="text-red-600">No se pudo cargar la información del usuario</p>
+					</div>
+				)}
+			</div>
+		</main>
+	</div>
+</Layout>

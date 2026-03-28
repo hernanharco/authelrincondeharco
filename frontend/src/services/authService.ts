@@ -1,127 +1,169 @@
-import { API_CONFIG } from '@/config/api';
-import type { LoginRequest, LoginResponse, User } from '@/types/auth';
+// src/services/authService.ts
 
-// Interface para inyección de dependencias (DIP)
-export interface IAuthService {
-  login(credentials: LoginRequest): Promise<{ success: boolean; user?: User; error?: string }>;
-  loginWithGoogle(token: string): Promise<{ success: boolean; user?: User; error?: string }>;
-  logout(): Promise<void>;
-  forgotPassword(email: string): Promise<{ success: boolean; message?: string; error?: string }>;
-  resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message?: string; error?: string }>;
+export interface LoginRequest {
+  username: string;
+  password: string;
 }
 
-// Implementación concreta (SRP)
-export class AuthService implements IAuthService {
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  user: {
+    id: string;
+    email: string;
+    username: string;
+    full_name?: string;
+    role: string;
+    status: string;
+  };
+}
+
+export interface ApiErrorResponse {
+  detail: string | { msg: string }[];
+}
+
+export type User = LoginResponse['user'];
+
+export interface AuthError {
+  message: string;
+  field?: string;
+}
+
+export interface AuthState {
+  isLoading: boolean;
+  error: AuthError | null;
+  success: string | null;
+  user: User | null;
+}
+
+const API_CONFIG = {
+  baseUrl: import.meta.env.PUBLIC_API_URL || 'http://localhost:8000',
+  endpoints: {
+    auth: {
+      login: '/api/v1/auth/login',
+      google: '/api/v1/auth/google',
+      forgotPassword: '/api/v1/auth/forgot-password',
+      resetPassword: '/api/v1/auth/reset-password',
+    },
+    users: {
+      base: '/api/v1/users',
+      me: '/api/v1/users/me',
+    },
+  },
+};
+
+export class AuthService {
   private baseUrl: string;
 
   constructor() {
     this.baseUrl = API_CONFIG.baseUrl;
   }
 
-  async login(credentials: LoginRequest): Promise<{ success: boolean; user?: User; error?: string }> {
-    try {
-      const response = await fetch(`${this.baseUrl}${API_CONFIG.endpoints.auth.login}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials),
-        credentials: 'include',
-      });
+  async login(credentials: LoginRequest): Promise<LoginResponse> {
+    const response = await fetch(`${this.baseUrl}${API_CONFIG.endpoints.auth.login}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: credentials.username,
+        password: credentials.password
+      }),
+      credentials: 'include',
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        const errorMsg = typeof data.detail === 'string' ? data.detail : 'Credenciales incorrectas';
-        return { success: false, error: errorMsg };
-      }
-
-      return { success: true, user: data.user };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Error desconocido' };
+    if (!response.ok) {
+      const errorData = data as ApiErrorResponse;
+      throw new Error(typeof errorData.detail === 'string' ? errorData.detail : 'Credenciales incorrectas');
     }
+
+    return data as LoginResponse;
   }
 
-  async loginWithGoogle(token: string): Promise<{ success: boolean; user?: User; error?: string }> {
-    try {
-      if (!token) {
-        return { success: false, error: "No se recibió el token de Google" };
-      }
-
-      const response = await fetch(`${this.baseUrl}${API_CONFIG.endpoints.auth.google}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, origin: "google" }),
-        credentials: 'include',
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        let errorMsg = 'Error en Google Auth';
-        if (typeof data.detail === 'string') {
-          errorMsg = data.detail;
-        } else if (Array.isArray(data.detail)) {
-          errorMsg = data.detail[0]?.msg || JSON.stringify(data.detail);
-        }
-        return { success: false, error: errorMsg };
-      }
-
-      return { success: true, user: data.user };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Error en autenticación social' };
+  async loginWithGoogle(code: string): Promise<LoginResponse> {
+    if (!code) {
+      throw new Error("No se recibió el código de autorización de Google");
     }
-  }
 
-  async logout(): Promise<void> {
-    try {
-      await fetch(`${this.baseUrl}/api/v1/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } catch (error) {
-      console.error('Error en logout:', error);
-    }
-  }
+    const response = await fetch(`${this.baseUrl}${API_CONFIG.endpoints.auth.google}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        token: code,
+        origin: "google" 
+      }),
+      credentials: 'include',
+    });
 
-  async forgotPassword(email: string): Promise<{ success: boolean; message?: string; error?: string }> {
-    try {
-      const response = await fetch(`${this.baseUrl}${API_CONFIG.endpoints.auth.forgotPassword}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
+    const data = await response.json();
 
-      const data = await response.json();
+    if (!response.ok) {
+      console.error("Error Backend Google Auth:", data);
       
-      if (!response.ok) {
-        return { success: false, error: data.detail || 'Error al procesar' };
+      let errorMsg = 'Error en Google Auth';
+      if (typeof data.detail === 'string') {
+        errorMsg = data.detail;
+      } else if (Array.isArray(data.detail)) {
+        errorMsg = data.detail[0]?.msg || JSON.stringify(data.detail);
       }
 
-      return { success: true, message: data.message };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Error desconocido' };
+      throw new Error(errorMsg);
     }
+
+    return data as LoginResponse;
   }
 
-  async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const response = await fetch(`${this.baseUrl}${API_CONFIG.endpoints.auth.forgotPassword}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.detail || 'Error al procesar');
+    }
+
+    return data;
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const response = await fetch(`${this.baseUrl}${API_CONFIG.endpoints.auth.resetPassword}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword }),
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.detail || 'Error al restablecer');
+    }
+
+    return data;
+  }
+
+  async getCurrentUser(): Promise<User | null> {
     try {
-      const response = await fetch(`${this.baseUrl}${API_CONFIG.endpoints.auth.resetPassword}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, newPassword }),
+      const response = await fetch(`${this.baseUrl}${API_CONFIG.endpoints.users.me}`, {
+        method: 'GET',
+        credentials: 'include',
       });
 
-      const data = await response.json();
-      
       if (!response.ok) {
-        return { success: false, error: data.detail || 'Error al restablecer' };
+        return null;
       }
 
-      return { success: true, message: data.message };
+      const data = await response.json();
+      return data as User;
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Error desconocido' };
+      console.error('Error fetching current user:', error);
+      return null;
     }
   }
 }
 
-// Singleton para inyección de dependencias
+// Singleton instance
 export const authService = new AuthService();
