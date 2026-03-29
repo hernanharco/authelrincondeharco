@@ -14,15 +14,47 @@ if (!token) {
 	return Astro.redirect('/login');
 }
 
+// Obtener parámetros de query
+const url = new URL(Astro.request.url);
+const searchRole = url.searchParams.get('role') || '';
+const searchStatus = url.searchParams.get('status') || '';
+const searchOrigin = url.searchParams.get('origin') || '';
+const searchQuery = url.searchParams.get('search') || '';
+
+// Construir query string
+const queryParams = new URLSearchParams();
+if (searchRole) queryParams.append('role', searchRole);
+if (searchStatus) queryParams.append('status', searchStatus);
+if (searchOrigin) queryParams.append('origin', searchOrigin);
+if (searchQuery) queryParams.append('search', searchQuery);
+
 // Obtener usuarios
 let users = [];
+let stats = null;
 
 try {
-	const usersRes = await fetch(apiUrl(ENDPOINTS.users.list), {
-		headers: { Authorization: `Bearer ${token}` },
-	});
+	const [usersRes, statsRes] = await Promise.all([
+		fetch(
+			apiUrl(ENDPOINTS.users.list) + (queryParams.toString() ? '?' + queryParams.toString() : ''),
+			{
+				headers: { Authorization: `Bearer ${token}` },
+			},
+		),
+		fetch(apiUrl(ENDPOINTS.users.stats), {
+			headers: { Authorization: `Bearer ${token}` },
+		}),
+	]);
+
+	// Manejar respuesta 401
+	if (usersRes.status === 401 || statsRes.status === 401) {
+		return Astro.redirect('/login');
+	}
+
 	if (usersRes.ok) {
 		users = await usersRes.json();
+	}
+	if (statsRes.ok) {
+		stats = await statsRes.json();
 	}
 } catch (error) {
 	console.error('Error fetching users:', error);
@@ -37,15 +69,22 @@ try {
 				<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 					<div>
 						<h2 class="text-xl font-semibold text-[#F9FAFB]">Lista de Usuarios</h2>
-						<p class="text-[#9CA3AF] mt-1">{users.length} usuarios registrados</p>
+						<p class="text-[#9CA3AF] mt-1">{stats?.total || users.length} usuarios registrados</p>
 					</div>
 					<div class="flex flex-col sm:flex-row gap-3">
 						<div class="relative">
-							<input
-								type="text"
-								placeholder="Buscar usuarios..."
-								class="w-full sm:w-64 px-4 py-2 pl-10 bg-[#2D3148] border border-[#374151] rounded-lg text-[#F9FAFB] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
-							/>
+							<form method="GET" class="contents">
+								<input
+									type="text"
+									name="search"
+									value={searchQuery}
+									placeholder="Buscar usuarios..."
+									class="w-full sm:w-64 px-4 py-2 pl-10 bg-[#2D3148] border border-[#374151] rounded-lg text-[#F9FAFB] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
+								/>
+								<input type="hidden" name="role" value={searchRole} />
+								<input type="hidden" name="status" value={searchStatus} />
+								<input type="hidden" name="origin" value={searchOrigin} />
+							</form>
 							<svg
 								class="absolute left-3 top-2.5 w-4 h-4 text-[#6B7280]"
 								fill="none"
@@ -59,24 +98,39 @@ try {
 									d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
 							</svg>
 						</div>
-						<select
-							class="px-4 py-2 bg-[#2D3148] border border-[#374151] rounded-lg text-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-						>
-							<option value="">Todos los roles</option>
-							<option value="ADMIN">Admin</option>
-							<option value="USER">Usuario</option>
-							<option value="MANAGER">Manager</option>
-							<option value="VIEWER">Viewer</option>
-						</select>
-						<select
-							class="px-4 py-2 bg-[#2D3148] border border-[#374151] rounded-lg text-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-						>
-							<option value="">Todos los estados</option>
-							<option value="ACTIVE">Activo</option>
-							<option value="INACTIVE">Inactivo</option>
-							<option value="SUSPENDED">Suspendido</option>
-							<option value="PENDING">Pendiente</option>
-						</select>
+						<form method="GET" class="contents">
+							<select
+								name="role"
+								class="px-4 py-2 bg-[#2D3148] border border-[#374151] rounded-lg text-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+								onchange="this.form.submit()"
+							>
+								<option value="" selected={!searchRole}>Todos los roles</option>
+								<option value="ADMIN" selected={searchRole === 'ADMIN'}>Admin</option>
+								<option value="USER" selected={searchRole === 'USER'}>Usuario</option>
+								<option value="MANAGER" selected={searchRole === 'MANAGER'}>Manager</option>
+								<option value="VIEWER" selected={searchRole === 'VIEWER'}>Viewer</option>
+							</select>
+							<input type="hidden" name="search" value={searchQuery} />
+							<input type="hidden" name="status" value={searchStatus} />
+							<input type="hidden" name="origin" value={searchOrigin} />
+						</form>
+						<form method="GET" class="contents">
+							<select
+								name="status"
+								class="px-4 py-2 bg-[#2D3148] border border-[#374151] rounded-lg text-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+								onchange="this.form.submit()"
+							>
+								<option value="" selected={!searchStatus}>Todos los estados</option>
+								<option value="ACTIVE" selected={searchStatus === 'ACTIVE'}>Activo</option>
+								<option value="INACTIVE" selected={searchStatus === 'INACTIVE'}>Inactivo</option>
+								<option value="SUSPENDED" selected={searchStatus === 'SUSPENDED'}>Suspendido</option
+								>
+								<option value="PENDING" selected={searchStatus === 'PENDING'}>Pendiente</option>
+							</select>
+							<input type="hidden" name="search" value={searchQuery} />
+							<input type="hidden" name="role" value={searchRole} />
+							<input type="hidden" name="origin" value={searchOrigin} />
+						</form>
 					</div>
 				</div>
 			</div>
@@ -87,7 +141,7 @@ try {
 					<div class="flex items-center justify-between">
 						<div>
 							<p class="text-sm text-[#9CA3AF]">Total</p>
-							<p class="text-xl font-bold text-[#F9FAFB]">{users.length}</p>
+							<p class="text-xl font-bold text-[#F9FAFB]">{stats?.total || users.length}</p>
 						</div>
 						<div class="w-8 h-8 bg-[#6366F1]/10 rounded-lg flex items-center justify-center">
 							<svg
@@ -111,7 +165,7 @@ try {
 						<div>
 							<p class="text-sm text-[#9CA3AF]">Activos</p>
 							<p class="text-xl font-bold text-[#10B981]">
-								{users.filter((u: any) => u.status === 'ACTIVE').length}
+								{stats?.by_status?.ACTIVE || users.filter((u: any) => u.status === 'ACTIVE').length}
 							</p>
 						</div>
 						<div class="w-8 h-8 bg-[#10B981]/10 rounded-lg flex items-center justify-center">
@@ -135,7 +189,10 @@ try {
 						<div>
 							<p class="text-sm text-[#9CA3AF]">Admins</p>
 							<p class="text-xl font-bold text-[#7C3AED]">
-								{users.filter((u: any) => u.role === 'ADMIN' || u.role === 'SUPERADMIN').length}
+								{
+									stats?.by_role?.ADMIN + stats?.by_role?.SUPERADMIN ||
+										users.filter((u: any) => u.role === 'ADMIN' || u.role === 'SUPERADMIN').length
+								}
 							</p>
 						</div>
 						<div class="w-8 h-8 bg-[#7C3AED]/10 rounded-lg flex items-center justify-center">
@@ -160,7 +217,10 @@ try {
 						<div>
 							<p class="text-sm text-[#9CA3AF]">Pendientes</p>
 							<p class="text-xl font-bold text-[#F59E0B]">
-								{users.filter((u: any) => u.status === 'PENDING').length}
+								{
+									stats?.by_status?.PENDING ||
+										users.filter((u: any) => u.status === 'PENDING').length
+								}
 							</p>
 						</div>
 						<div class="w-8 h-8 bg-[#F59E0B]/10 rounded-lg flex items-center justify-center">

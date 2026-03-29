@@ -29,6 +29,12 @@ try {
 			headers: { Authorization: `Bearer ${token}` },
 		}),
 	]);
+
+	// Manejar respuesta 401
+	if (statsRes.status === 401 || recentRes.status === 401 || pendingRes.status === 401) {
+		return Astro.redirect('/login');
+	}
+
 	if (statsRes.ok) stats = await statsRes.json();
 	if (recentRes.ok) recentUsers = await recentRes.json();
 	if (pendingRes.ok) pendingUsers = await pendingRes.json();
@@ -41,7 +47,7 @@ try {
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<div class="space-y-6">
 			<!-- Header Section -->
-			<div class="bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] rounded-xl p-8 text-white shadow-lg">
+			<div class="bg-linear-to-r from-[#6366F1] to-[#8B5CF6] rounded-xl p-8 text-white shadow-lg">
 				<h1 class="text-3xl font-bold mb-2">Panel de Administración</h1>
 				<p class="text-white/80">Gestiona usuarios y monitorea el sistema</p>
 			</div>

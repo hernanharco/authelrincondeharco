@@ -112,3 +112,10 @@ class UsersByOrigin(BaseModel):
     total_users: int
     by_role: dict[str, int]
     by_status: dict[str, int]
+
+class UsersByOrigin(BaseModel):
+    origin: str
+    count: int
+
+    class Config:
+        from_attributes = True

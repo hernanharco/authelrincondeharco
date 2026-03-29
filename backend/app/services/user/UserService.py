@@ -329,9 +329,10 @@ class UserService(IUserService):
         limit: int = 100,
         search: Optional[str] = None,
         role: Optional[UserRole] = None,
+        current_user: User = None,
     ) -> List[User]:
         """Método de compatibilidad para get_users."""
-        return await self.get_users(skip, limit, search, role)
+        return await self.get_users(skip, limit, search, role, current_user)
 
     async def get_by_id(self, user_id: int, current_user: User) -> User:
         """Método de compatibilidad para get_user_by_id."""

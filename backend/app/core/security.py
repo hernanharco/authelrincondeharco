@@ -22,7 +22,7 @@ class OAuth2PasswordBearerWithCookie(OAuth2PasswordBearer):
     Permite que Swagger y Postman sigan funcionando con Bearer token.
     """
     async def __call__(self, request: Request) -> Optional[str]:
-        token: str = request.cookies.get("access_token")
+        token: str = request.cookies.get("session") or request.cookies.get("access_token")
         if not token:
             token = await super().__call__(request)
         return token
