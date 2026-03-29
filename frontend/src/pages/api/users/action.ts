@@ -3,24 +3,30 @@ export const prerender = false;
 import type { APIRoute } from "astro";
 import { apiUrl } from "../../../config/api.config";
 
-export const PATCH: APIRoute = async ({ request, cookies, params }) => {
+export const PATCH: APIRoute = async ({ request, cookies }) => {
   const token = cookies.get("session")?.value;
   if (!token) {
     return new Response(JSON.stringify({ error: "No autorizado" }), { status: 401 });
   }
 
   try {
-    const { userId, action } = await request.json();
+    const body = await request.json();
+    const { userId, action } = body;
 
     let url: string;
-    let body: object;
+    let payload: object;
 
-    if (action === "approve") {
+    if (action === "approve" || action === "role") {
       url = apiUrl(`/api/v1/users/${userId}/role`);
-      body = { role: "USER" };
-    } else {
+      payload = { role: body.role || "USER" };
+    } else if (action === "status" || action === "reject") {
       url = apiUrl(`/api/v1/users/${userId}/status`);
-      body = { status: "SUSPENDED" };
+      payload = { status: body.status || "SUSPENDED" };
+    } else if (action === "lock") {
+      url = apiUrl(`/api/v1/users/${userId}/lock`);
+      payload = { is_locked: body.is_locked };
+    } else {
+      return new Response(JSON.stringify({ error: "Acción inválida" }), { status: 400 });
     }
 
     const res = await fetch(url, {
@@ -29,7 +35,7 @@ export const PATCH: APIRoute = async ({ request, cookies, params }) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
 
     const data = await res.json();

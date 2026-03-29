@@ -50,7 +50,7 @@ async def read_users(
     user_service: UserService = Depends(get_user_service),
     current_user: User = Depends(get_current_manager_or_admin)
 ):
-    return await user_service.get_all(skip=skip, limit=limit, search=search, role=role)
+    return await user_service.get_all(skip=skip, limit=limit, search=search, role=role, current_user=current_user)
 
 @router.post("/", response_model=UserResponse)
 async def create_user(
