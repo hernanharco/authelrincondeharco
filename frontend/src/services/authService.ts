@@ -3,7 +3,7 @@
  * Responsabilidad: Lógica de negocio de autenticación.
  * Centraliza las llamadas a la API y el flujo de OAuth.
  */
-import { API_CONFIG, getApiUrl } from '../config/api.config';
+import { apiUrl, ENDPOINTS } from '../config/api.config';
 
 // Interfaces para mantener el tipado fuerte
 export interface LoginRequest {
@@ -36,7 +36,7 @@ export class AuthService {
    * Login tradicional (Username/Password)
    */
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    const response = await fetch(getApiUrl(API_CONFIG.endpoints.auth.login), {
+    const response = await fetch(apiUrl(ENDPOINTS.auth.login), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
@@ -51,7 +51,7 @@ export class AuthService {
    */
   async getCurrentUser(): Promise<LoginResponse['user'] | null> {
     try {
-      const response = await fetch(getApiUrl(API_CONFIG.endpoints.users.me), {
+      const response = await fetch(apiUrl(ENDPOINTS.users.me), {
         method: 'GET',
         credentials: 'include',
       });

@@ -4,7 +4,7 @@ Define la estructura de la tabla users en la base de datos.
 Sin lógica de negocio — solo mapeo de columnas.
 """
 
-from sqlalchemy import Column, String, Boolean, Enum, Integer, DateTime
+from sqlalchemy import Column, String, Boolean, Enum, Integer, DateTime, Text
 from sqlalchemy.sql import func
 
 from app.models.base import Base
@@ -106,7 +106,7 @@ class User(Base):
     )
 
     notes = Column(
-        String,
+        Text,
         nullable=True,
         comment="Notas del administrador sobre el usuario",
     )

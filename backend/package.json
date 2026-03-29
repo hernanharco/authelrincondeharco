@@ -1,6 +1,7 @@
 {
   "name": "auth-core-backend",
   "version": "1.0.0",
+  "description": "Backend API for AuthCore using FastAPI and Poetry",
   "scripts": {
     "dev": "poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8001",
     "start": "poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000",
@@ -9,16 +10,17 @@
     "lint": "poetry run black app/ && poetry run isort app/ && poetry run flake8 app/",
     "format": "poetry run black app/ && poetry run isort app/",
     "type-check": "poetry run mypy app/",
-    "docker:build": "docker build -t auth-core-backend .",
-    "docker:run": "docker run -p 8000:8000 --env-file .env auth-core-backend",
-    "setup:dev": "bash poetry-setup.sh development",
-    "setup:prod": "bash poetry-setup.sh production",
     "shell": "poetry shell",
     "install": "poetry install",
     "install:prod": "poetry install --only main",
     "add": "poetry add",
     "add:dev": "poetry add --group dev",
     "update": "poetry update",
-    "export": "poetry export -f requirements.txt --output requirements.txt --without-hashes"
-  }
+    "export": "poetry export -f requirements.txt --output requirements.txt --without-hashes",
+    "setup:dev": "bash poetry-setup.sh development",
+    "setup:prod": "bash poetry-setup.sh production"
+  },
+  "keywords": ["fastapi", "poetry", "auth", "backend"],
+  "author": "AuthCore Team",
+  "license": "MIT"
 }

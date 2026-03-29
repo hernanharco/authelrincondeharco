@@ -1,0 +1,171 @@
+---
+export const prerender = false;
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { getRelativeTime } from '../../../utils/date';
+import { apiUrl, ENDPOINTS } from '../../../config/api.config';
+
+// Obtener token de autenticación
+const token = Astro.cookies.get('session')?.value;
+if (!token) {
+	return Astro.redirect('/login');
+}
+
+// Obtener usuarios pendientes
+let pendingUsers = [];
+
+try {
+	const pendingRes = await fetch(apiUrl(ENDPOINTS.users.pending), {
+		headers: { 'Authorization': `Bearer ${token}` }
+	});
+	if (pendingRes.ok) {
+		pendingUsers = await pendingRes.json();
+	}
+} catch (error) {
+	console.error('Error fetching pending users:', error);
+}
+
+---
+
+<DashboardLayout title="Usuarios Pendientes" pendingCount={pendingUsers.length}>
+	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<div class="space-y-6">
+		<!-- Header -->
+		<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+			<h2 class="text-xl font-semibold text-[#F9FAFB]">Cola de Aprobación</h2>
+			<p class="text-[#9CA3AF] mt-1">
+				{pendingUsers.length === 0 
+					? 'No hay usuarios pendientes de aprobación' 
+					: `${pendingUsers.length} usuarios esperando aprobación`
+				}
+			</p>
+		</div>
+
+		{pendingUsers.length === 0 ? (
+			<!-- Empty State -->
+			<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-12 text-center">
+				<div class="w-16 h-16 bg-[#10B981]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+					<svg class="w-8 h-8 text-[#10B981]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+					</svg>
+				</div>
+				<h3 class="text-lg font-semibold text-[#F9FAFB] mb-2">¡Todo al día!</h3>
+				<p class="text-[#9CA3AF]">No hay usuarios pendientes de aprobación en este momento.</p>
+			</div>
+		) : (
+			<!-- Pending Users List -->
+			<div class="space-y-4">
+				{pendingUsers.map((user: any) => (
+					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+						<div class="flex items-center justify-between">
+							<div class="flex items-center space-x-4">
+								<div class="w-12 h-12 bg-[#6366F1] rounded-full flex items-center justify-center text-white font-semibold">
+									{(user.full_name || user.username).charAt(0).toUpperCase()}
+								</div>
+								<div>
+									<h3 class="text-lg font-semibold text-[#F9FAFB]">
+										{user.full_name || user.username}
+									</h3>
+									<p class="text-[#9CA3AF]">@{user.username}</p>
+									<p class="text-sm text-[#9CA3AF]">{user.email}</p>
+									<div class="flex items-center space-x-2 mt-2">
+										<span class="text-xs px-2 py-1 rounded-full bg-[#6366F1]/20 text-[#6366F1]">
+											{user.origin || 'unknown'}
+										</span>
+										<span class="text-xs text-[#9CA3AF]">
+											Registrado {getRelativeTime(user.created_at)}
+										</span>
+									</div>
+								</div>
+							</div>
+							
+							<div class="flex space-x-2">
+								<form method="POST" action={`/api/approve-user/${user.id}`} class="inline">
+									<input type="hidden" name="action" value="approve">
+									<button
+										type="submit"
+										class="px-4 py-2 bg-[#10B981] text-white rounded-lg hover:bg-[#059669] transition-colors"
+									>
+										Aprobar
+									</button>
+								</form>
+								<form method="POST" action={`/api/approve-user/${user.id}`} class="inline">
+									<input type="hidden" name="action" value="reject">
+									<button
+										type="submit"
+										class="px-4 py-2 bg-[#EF4444] text-white rounded-lg hover:bg-[#DC2626] transition-colors"
+									>
+										Rechazar
+									</button>
+								</form>
+							</div>
+						</div>
+					</div>
+				))}
+			</div>
+		)}
+	</div>
+
+	<script>
+		import { apiUrl, ENDPOINTS } from '../../../config/api.config';
+		
+		// Manejar aprobación/rechazo de usuarios
+		async function handleUserAction(userId: number, action: 'approve' | 'reject') {
+			try {
+				const token = document.cookie
+					.split(';')
+					.map(c => c.trim())
+					.find(c => c.startsWith('session='))
+					?.split('=')[1];
+
+				if (!token) {
+					window.location.href = '/login';
+					return;
+				}
+
+				const role = action === 'approve' ? 'USER' : 'NONE';
+				const status = action === 'approve' ? 'ACTIVE' : 'SUSPENDED';
+
+				// Actualizar rol
+				await fetch(apiUrl(ENDPOINTS.users.byId(userId) + '/role'), {
+					method: 'PATCH',
+					headers: {
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${token}`
+					},
+					body: JSON.stringify({ role })
+				});
+
+				// Actualizar estado
+				await fetch(apiUrl(ENDPOINTS.users.byId(userId) + '/status'), {
+					method: 'PATCH',
+					headers: {
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${token}`
+					},
+					body: JSON.stringify({ status })
+				});
+
+				// Recargar la página
+				window.location.reload();
+			} catch (error) {
+				console.error('Error handling user action:', error);
+				alert('Error al procesar la acción');
+			}
+		}
+
+		// Agregar event listeners a los formularios
+		document.addEventListener('DOMContentLoaded', () => {
+			const forms = document.querySelectorAll('form[action*="approve-user"]');
+			forms.forEach(form => {
+				form.addEventListener('submit', (e) => {
+					e.preventDefault();
+					const userId = parseInt(form.action.split('/').pop() || '0');
+					const action = (form.querySelector('input[name="action"]') as HTMLInputElement)?.value;
+					if (action === 'approve' || action === 'reject') {
+						handleUserAction(userId, action);
+					}
+				});
+			});
+		});
+	</script>
+</DashboardLayout>

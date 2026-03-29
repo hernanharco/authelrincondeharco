@@ -1,6 +1,6 @@
-# Backend AuthCore - Resumen Técnico
+# Backend AuthCore - Documentación Real
 
-## 🏗️ Stack Tecnológico
+## 🏗️ Stack Tecnológico Actual
 
 - **Framework**: FastAPI 0.128.0
 - **Base de Datos**: PostgreSQL con SQLAlchemy 2.0
@@ -11,7 +11,7 @@
 - **Testing**: pytest con pytest-asyncio
 - **Calidad de Código**: black, isort, flake8, mypy, pre-commit
 
-## 📁 Estructura del Proyecto
+## 📁 Estructura Real del Proyecto
 
 ```
 backend/
@@ -22,8 +22,7 @@ backend/
 │   │       ├── dependencies.py  # Inyección de dependencias
 │   │       └── endpoints/      # Endpoints específicos
 │   │           ├── auth.py      # Autenticación (login, Google OAuth)
-│   │           ├── users.py     # Gestión de usuarios
-│   │           └── auth/       # Módulos de auth
+│   │           └── users.py     # Gestión de usuarios
 │   ├── core/              # Configuración central
 │   │   └── config.py     # Settings con Pydantic
 │   ├── db/                # Base de datos
@@ -39,9 +38,7 @@ backend/
 │   │   └── user.py        # Schemas de usuario
 │   ├── services/          # Lógica de negocio
 │   │   ├── auth_service.py # Servicio principal de auth
-│   │   ├── user_service.py # Gestión de usuarios
-│   │   ├── auth/          # Servicios de auth
-│   │   └── user/          # Servicios de usuarios
+│   │   └── user_service.py # Gestión de usuarios
 │   ├── types/             # Tipos personalizados
 │   │   └── enums.py       # Enums UserRole, UserStatus
 │   └── main.py            # Entry point FastAPI
@@ -49,11 +46,12 @@ backend/
 ├── scripts/               # Scripts utilitarios
 ├── .env                   # Variables de entorno
 ├── .env.example           # Plantilla de configuración
-├── create_test_user.py    # Script para crear usuario de prueba
+├── package.json            # Scripts de desarrollo (Poetry)
 ├── pyproject.toml         # Configuración Poetry
 ├── poetry.lock            # Lock file de dependencias
+├── poetry-setup.sh         # Script de configuración
 ├── Dockerfile             # Imagen Docker
-├── docker-compose.yml     # Compose
+├── docker-compose.yml      # Compose
 └── README.md              # Documentación
 ```
 
@@ -112,13 +110,6 @@ class User(Base):
 - **httpOnly cookies** + Authorization header
 - **CORS** configurable por entorno
 
-### 🏗️ Arquitectura Limpia
-- **Domain-Driven Design** con separación clara
-- **SOLID Principles** en toda la arquitectura
-- **Dependency Injection** con interfaces
-- **Repository Pattern** para acceso a datos
-- **Service Layer** para lógica de negocio
-
 ## 🎯 Sistema de Roles y Permisos
 
 ### Roles Definidos (UserRole enum)
@@ -149,9 +140,6 @@ class User(Base):
 - `GET /google`: Inicia flujo Google OAuth (redirección)
 - `GET /callback`: Procesa callback de Google (HTML con postMessage)
 - `POST /logout`: Cierre de sesión
-- `POST /refresh`: Refresh token JWT
-- `POST /forgot-password`: Recuperación de contraseña
-- `POST /reset-password`: Restablecimiento de contraseña
 
 ### Usuarios (`/api/v1/users/`)
 - `GET /`: Listar usuarios (paginado, admin+)
@@ -163,6 +151,7 @@ class User(Base):
 - `DELETE /{id}`: Eliminar usuario (admin+)
 - `PATCH /{id}/role`: Cambiar rol (admin+)
 - `GET /pending`: Usuarios pendientes (superadmin)
+- `GET /by-origin`: Usuarios agrupados por origen (admin+)
 
 ### Sistema (`/`, `/health`)
 - `GET /`: Mensaje de bienvenida
@@ -170,28 +159,7 @@ class User(Base):
 - `GET /docs`: Swagger UI
 - `GET /redoc`: ReDoc documentation
 
-## 🔁 Flujo de Autenticación
-
-### Login Tradicional
-1. Usuario envía `username` y `password` a `/api/v1/auth/login`
-2. Backend valida credenciales contra BD con bcrypt
-3. Genera JWT token con claims del usuario
-4. Retorna token y datos del usuario
-5. Frontend guarda token y redirige al dashboard
-
-### Google OAuth 2.0 con Popup
-1. **Frontend**: Usuario hace clic en "Continuar con Google"
-2. **Popup**: Se abre ventana con `GET /api/v1/auth/google`
-3. **Backend**: Redirige a Google OAuth
-4. **Google**: Usuario autoriza en popup
-5. **Google**: Redirige a `http://localhost:4321/api/v1/auth/callback?code=xxx`
-6. **Frontend**: Callback redirige a `http://localhost:8001/api/v1/auth/callback?code=xxx`
-7. **Backend**: Intercambia código por access_token, obtiene userinfo
-8. **Backend**: Crea/actualiza usuario, genera JWT interno
-9. **Backend**: Responde con HTML que cierra popup y envía datos via postMessage
-10. **Frontend**: Recibe AUTH_SUCCESS, guarda usuario, redirige a dashboard
-
-## 🛠️ Comandos de Desarrollo
+## ️ Comandos de Desarrollo
 
 ```bash
 # Instalación y configuración
@@ -204,8 +172,6 @@ python create_test_user.py --list     # Listar usuarios existentes
 
 # Desarrollo
 poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
-# o
-poetry run gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
 
 # Tests
 pytest                           # Todos los tests
@@ -229,6 +195,7 @@ pre-commit run --all-files       # Todos los hooks
 # Environment
 ENVIRONMENT=development
 DEBUG=true
+
 SECRET_KEY=your-secret-key-here-change-in-production
 
 # Database (PostgreSQL)
@@ -260,7 +227,7 @@ CLOUDINARY_API_KEY=your-api-key
 CLOUDINARY_API_SECRET=your-api-secret
 ```
 
-## 🔌 Integración con Frontend
+## 🌌 Integración con Frontend
 
 ### Configuración Astro + Svelte
 - **Backend URL**: `http://localhost:8001` (configurable)
@@ -305,7 +272,43 @@ WARNING: CORS request blocked: Origin not allowed
 - **Environment**: Verificar variables en `print(settings.model_dump())`
 - **Database**: Conectar a PostgreSQL para verificar datos
 
-## 🏛️ Arquitectura SOLID Detallada
+## 📦 Dependencias Principales
+
+### Core Dependencies
+```python
+fastapi = "^0.128.0"           # Web framework
+uvicorn = { extras = ["standard"], version = "^0.40.0" }  # ASGI server
+sqlalchemy = "^2.0.23"         # ORM
+psycopg2-binary = "^2.9.9"     # PostgreSQL driver
+pydantic = "^2.12.5"           # Data validation
+pydantic-settings = "^2.1.0"   # Settings management
+python-dotenv = "^1.0.0"       # Environment variables
+```
+
+### Security & Auth
+```python
+python-jose = { extras = ["cryptography"], version = "^3.5.0" }  # JWT handling
+bcrypt = "^5.0.0"              # Password hashing
+python-multipart = "^0.0.22"   # Form data
+google-auth = "^2.48.0"        # Google OAuth
+google-auth-oauthlib = "^1.2.4" # Google OAuth
+requests = "^2.32.5"           # HTTP client
+requests-oauthlib = "^2.0.0"   # OAuth client
+```
+
+### Development & Quality
+```python
+pytest = "^7.4.0"              # Testing framework
+pytest-asyncio = "^0.21.0"    # Async testing
+pytest-cov = "^4.1.0"          # Coverage
+black = "^23.0.0"               # Code formatter
+isort = "^5.12.0"               # Import sorter
+flake8 = "^6.0.0"               # Linter
+mypy = "^1.5.0"                 # Type checker
+pre-commit = "^3.4.0"           # Git hooks
+```
+
+## 🏛️ Arquitectura SOLID
 
 ### **S** - Single Responsibility Principle
 - **Interfaces**: Cada interface tiene una responsabilidad específica
@@ -330,78 +333,3 @@ WARNING: CORS request blocked: Origin not allowed
 - **Inyección de Dependencias**: FastAPI `Depends()` para inyectar servicios
 - **Depende de Abstracciones**: Los servicios dependen de interfaces, no de implementaciones
 - **Contenedor DI**: `dependencies.py` centraliza la configuración de dependencias
-
-## 🧪 Testing Strategy
-
-### Unit Tests
-```bash
-# Tests de lógica de negocio sin dependencias externas
-pytest tests/unit/test_services.py
-pytest tests/unit/test_repositories.py
-```
-- **Servicios**: Test de lógica de negocio con mocks
-- **Repositorios**: Test de acceso a datos con BD en memoria
-- **Interfaces**: Test de contratos con implementaciones falsas
-
-### Integration Tests
-```bash
-# Tests de endpoints HTTP con base de datos real
-pytest tests/integration/test_auth.py
-pytest tests/integration/test_users.py
-```
-- **Endpoints**: Test de endpoints API con BD de prueba
-- **OAuth**: Test de flujo de autenticación con Google sandbox
-- **Database**: Test de migraciones y modelos
-
-### E2E Tests
-```bash
-# Tests de flujo completo
-pytest tests/e2e/test_full_auth_flow.py
-```
-- **Flujo Completo**: Login tradicional + Google OAuth con popup
-- **Permisos**: Verificación de roles en endpoints protegidos
-- **Sesiones**: Gestión de tokens y localStorage
-
-### Scripts de Testing
-- **create_test_user.py**: Creación de usuarios de prueba
-- **test_oauth.md**: Checklist completo de testing OAuth
-- **GOOGLE_OAUTH_SETUP.md**: Guía de configuración y testing
-
-### Configuración de Tests
-- **pytest.ini**: Configuración de markers y opciones
-- **conftest.py**: Fixtures para BD y clientes HTTP
-- **test_db.py**: Base de datos de testing aislada
-- **Coverage**: Configurado para excluir tests y migrations
-
-## 📦 Dependencias Principales
-
-### Core Dependencies
-```python
-fastapi = "^0.128.0"           # Web framework
-uvicorn = "^0.40.0"            # ASGI server
-sqlalchemy = "^2.0.23"         # ORM
-psycopg2-binary = "^2.9.9"     # PostgreSQL driver
-pydantic = "^2.12.5"           # Data validation
-pydantic-settings = "^2.1.0"   # Settings management
-```
-
-### Security & Auth
-```python
-python-jose = "^3.5.0"         # JWT handling
-bcrypt = "^5.0.0"              # Password hashing
-python-multipart = "^0.0.22"   # Form data
-google-auth = "^2.48.0"        # Google OAuth
-google-auth-oauthlib = "^1.2.4" # Google OAuth
-requests = "^2.32.5"           # HTTP client
-requests-oauthlib = "^2.0.0"   # OAuth client
-```
-
-### Development & Quality
-```python
-pytest = "^7.4.0"              # Testing framework
-black = "^23.0.0"               # Code formatter
-isort = "^5.12.0"               # Import sorter
-flake8 = "^6.0.0"               # Linter
-mypy = "^1.5.0"                 # Type checker
-pre-commit = "^3.4.0"           # Git hooks
-```

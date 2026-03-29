@@ -4,17 +4,18 @@ export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import LoginForm from '../components/auth/LoginForm.svelte';
 import GoogleButton from '../components/auth/GoogleButton.svelte';
+import { apiUrl, ENDPOINTS } from '../config/api.config';
 
+// Lógica de sesión (se mantiene igual, es sólida)
 if (Astro.cookies.has('session')) {
   const token = Astro.cookies.get('session')?.value;
   if (token) {
-    const check = await fetch('http://localhost:8001/api/v1/users/me', {
-      headers: { 'Authorization': `Bearer ${token}` },
+    const check = await fetch(apiUrl(ENDPOINTS.users.me), {
+      headers: { Authorization: `Bearer ${token}` },
     }).catch(() => null);
     if (check && check.ok) {
       return Astro.redirect('/dashboard');
     } else {
-      // Token inválido — borrar cookie
       Astro.cookies.delete('session', { path: '/' });
     }
   }
@@ -22,27 +23,91 @@ if (Astro.cookies.has('session')) {
 ---
 
 <Layout title="Iniciar Sesión - AuthCore">
-  <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8">
-      <div>
-        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Inicia sesión en tu cuenta
-        </h2>
-        <p class="mt-2 text-center text-sm text-gray-600">
-          O <a href="/register" class="font-medium text-blue-600 hover:text-blue-500">
-            regístrate para empezar
+  <main
+    class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 px-4 py-12 sm:px-6 lg:px-8"
+  >
+    <div class="max-w-md w-full">
+      <div class="bg-white/80 backdrop-blur-md shadow-2xl rounded-2xl p-8 border border-white/20">
+        <div class="text-center mb-8">
+          <div
+            class="mx-auto h-12 w-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg mb-4"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-8 w-8 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              ></path>
+            </svg>
+          </div>
+
+          <h2 class="text-3xl font-bold text-gray-800 tracking-tight">¡Bienvenido de nuevo!</h2>
+          <p class="mt-2 text-sm text-gray-500">Ingresa tus credenciales para acceder</p>
+        </div>
+
+        <div class="space-y-6">
+          <LoginForm client:load />
+
+          <div class="relative my-6">
+            <div class="absolute inset-0 flex items-center">
+              <div class="w-full border-t border-gray-200"></div>
+            </div>
+            <div class="relative flex justify-center text-sm">
+              <span class="px-2 bg-white text-gray-400">O continúa con</span>
+            </div>
+          </div>
+
+          <GoogleButton client:load />
+        </div>
+
+        <div class="mt-8 space-y-4 text-center">
+          <p class="text-sm text-gray-600">
+            ¿No tienes cuenta?
+            <a
+              href="/register"
+              class="font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              Regístrate gratis
+            </a>
+          </p>
+
+          <a
+            href="/forgot-password"
+            class="block text-xs text-gray-400 hover:text-blue-500 transition-colors"
+          >
+            ¿Olvidaste tu contraseña?
           </a>
-        </p>
+        </div>
       </div>
 
-      <LoginForm client:load />
-      <GoogleButton client:load />
-
-      <div class="mt-6 text-center">
-        <a href="/forgot-password" class="text-sm text-blue-600 hover:text-blue-500">
-          ¿Olvidaste tu contraseña?
-        </a>
-      </div>
+      <p class="mt-8 text-center text-xs text-gray-400">
+        &copy; 2026 AuthCore - Sistema Seguro y Modular.
+      </p>
     </div>
-  </div>
+  </main>
 </Layout>
+
+<style>
+  /* Animación suave al cargar la página */
+  main {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>

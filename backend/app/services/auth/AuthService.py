@@ -1,4 +1,5 @@
 """
+backend/app/services/auth/AuthService.py
 Servicio de Autenticación - Principio de Responsabilidad Única
 """
 
@@ -16,10 +17,6 @@ from app.types.enums import UserRole, UserStatus
 
 
 class AuthService(IAuthService):
-    """
-    Implementación concreta del servicio de autenticación.
-    Orquesta los diferentes servicios para autenticación completa.
-    """
 
     def __init__(
         self,
@@ -34,10 +31,6 @@ class AuthService(IAuthService):
         self.user_repository = user_repository
 
     async def authenticate_user(self, username: str, password: str) -> Optional[User]:
-        """
-        Autentica un usuario con credenciales tradicionales.
-        """
-        # Buscar usuario por username o email
         user = await self.user_repository.get_by_username(username)
         if not user:
             user = await self.user_repository.get_by_email(username)
@@ -45,11 +38,9 @@ class AuthService(IAuthService):
         if not user:
             return None
 
-        # Verificar contraseña
         if not verify_password(password, user.password_hash):
             return None
 
-        # Verificar estado de la cuenta
         if not user.is_active or user.is_locked:
             return None
 
@@ -58,11 +49,7 @@ class AuthService(IAuthService):
     async def authenticate_with_google(
         self, token: str, origin: str
     ) -> Tuple[User, str, int]:
-        """
-        Autentica un usuario con Google OAuth.
-        """
         try:
-            # 1. Validar token con Google
             user_info = await self.oauth_service.verify_token(token)
             email = user_info.get("email")
 
@@ -72,11 +59,9 @@ class AuthService(IAuthService):
                     detail="No se pudo obtener el email del usuario",
                 )
 
-            # 2. Buscar o crear usuario en BD
             user = await self.user_repository.get_by_email(email)
 
             if not user:
-                # Generar username único desde el email
                 base_username = email.split("@")[0]
                 username = base_username
                 suffix = 1
@@ -89,41 +74,46 @@ class AuthService(IAuthService):
                         "email": email,
                         "username": username,
                         "full_name": user_info.get("name", ""),
-                        "password_hash": "",  # Sin contraseña para usuarios OAuth
-                        "role": UserRole.USER,
-                        "status": UserStatus.ACTIVE,
-                        "is_active": True,
+                        "password_hash": "",
+                        "role": UserRole.NONE,       # 👈 cambiado
+                        "status": UserStatus.PENDING, # 👈 cambiado
+                        "is_active": False,           # 👈 cambiado
                         "origin": "google",
                     }
                 )
+                # Nuevo usuario pendiente — no generar token todavía
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="PENDING_APPROVAL",
+                )
 
-            # 3. Verificar estado de la cuenta
+            # Usuario existente — verificar estado
+            if user.status == UserStatus.PENDING:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="PENDING_APPROVAL",
+                )
+
             if not user.is_active or user.is_locked:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Cuenta desactivada o bloqueada.",
                 )
 
-            # 4. Generar JWT interno
             internal_token, expires_in = await self.create_access_token(user)
-
             return user, internal_token, expires_in
 
         except HTTPException:
             raise
         except Exception as e:
             import traceback
-
-            traceback.print_exc()  # ← añade esta línea
+            traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Error en autenticación: {str(e)}",
             )
 
     async def create_access_token(self, user: User) -> Tuple[str, int]:
-        """
-        Crea un token de acceso JWT.
-        """
         token_data = {
             "sub": str(user.id),
             "username": user.username,
@@ -131,35 +121,23 @@ class AuthService(IAuthService):
             "role": user.role.value,
             "type": "access",
         }
-
         token, expires_at = await self.token_service.create_access_token(token_data)
         expires_in = int((expires_at - datetime.utcnow()).total_seconds())
-
         return token, expires_in
 
     async def revoke_token(self, token: str) -> bool:
-        """
-        Revoca un token de acceso.
-        """
         return await self.token_service.revoke_token(token)
 
     def process_google_login(
         self, code: str, redirect_uri: str
     ) -> Tuple[User, str, int]:
-        """
-        Procesa el callback de Google OAuth usando el código de autorización.
-        Método síncrono para compatibilidad con el flujo actual.
-        """
         from datetime import datetime, timedelta, timezone
         from jose import jwt
         from app.core.config import settings
         import requests as http_requests
-        import bcrypt
 
         try:
-            # 1. Intercambiar código por access_token
             token_url = "https://oauth2.googleapis.com/token"
-
             data = {
                 "client_id": settings.google_client_id,
                 "client_secret": settings.google_client_secret,
@@ -184,7 +162,6 @@ class AuthService(IAuthService):
                     detail=f"No se recibió access_token. Respuesta: {token_data}",
                 )
 
-            # 2. Obtener datos del usuario desde Google
             userinfo_response = http_requests.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
                 headers={"Authorization": f"Bearer {access_token}"},
@@ -205,7 +182,6 @@ class AuthService(IAuthService):
                     detail="No se pudo obtener email de Google",
                 )
 
-            # 3. Buscar o crear usuario
             user = self.db.query(User).filter(User.email == email).first()
 
             if not user:
@@ -221,27 +197,36 @@ class AuthService(IAuthService):
                     email=email,
                     full_name=name,
                     password_hash="",
-                    role=UserRole.USER,
-                    status=UserStatus.ACTIVE,
-                    is_active=True,
+                    role=UserRole.NONE,        # 👈 cambiado
+                    status=UserStatus.PENDING,  # 👈 cambiado
+                    is_active=False,            # 👈 cambiado
                     is_locked=False,
                 )
                 self.db.add(user)
                 self.db.commit()
                 self.db.refresh(user)
 
-            # 4. Verificar que la cuenta no esté bloqueada
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="PENDING_APPROVAL",
+                )
+
+            # Usuario existente
+            if user.status == UserStatus.PENDING:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="PENDING_APPROVAL",
+                )
+
             if user.is_locked:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Cuenta bloqueada. Contacte con el administrador.",
                 )
 
-            # 5. Actualizar last_login
             user.last_login = datetime.now(timezone.utc)
             self.db.commit()
 
-            # 6. Generar JWT interno
             expires_in = settings.access_token_expire_minutes * 60
             expire = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
@@ -253,9 +238,7 @@ class AuthService(IAuthService):
                 "exp": expire,
             }
 
-            token = jwt.encode(
-                payload, settings.SECRET_KEY, algorithm=settings.algorithm
-            )
+            token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.algorithm)
             return user, token, expires_in
 
         except HTTPException:
