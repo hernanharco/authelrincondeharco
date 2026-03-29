@@ -1,331 +1,407 @@
 # Backend AuthCore - Resumen Técnico
 
-## Estructura del Proyecto
+## 🏗️ Stack Tecnológico
 
-### 📁 Archivos de Configuración
-- **pyproject.toml**: Configuración Poetry con FastAPI 0.128.0 y dependencias
-- **poetry.lock**: Lock file de dependencias
-- **requirements.txt**: Dependencias para despliegue (generado por Poetry)
-- **.pre-commit-config.yaml**: Hooks de pre-commit para calidad de código
+- **Framework**: FastAPI 0.128.0
+- **Base de Datos**: PostgreSQL con SQLAlchemy 2.0
+- **ORM**: SQLAlchemy 2.0 con Psycopg3
+- **Autenticación**: JWT + bcrypt + Google OAuth 2.0
+- **Gestión de Dependencias**: Poetry
+- **Python**: ^3.10
+- **Testing**: pytest con pytest-asyncio
+- **Calidad de Código**: black, isort, flake8, mypy, pre-commit
 
-### 📁 Archivos de Entorno
-- **.env**: Variables de entorno (DATABASE_URL, SECRET_KEY, Google OAuth)
-- **.env.example**: Plantilla de variables de entorno
-- **.gitignore**: Exclusiones de __pycache__, venv, .env
+## 📁 Estructura del Proyecto
 
-### 📁 Docker y Despliegue
-- **dockerfile**: Imagen Docker optimizada con Poetry
-- **.dockerignore**: Exclusiones para imagen Docker
-- **poetry-setup.sh**: Script de configuración de Poetry
+```
+backend/
+├── app/                    # Código fuente principal
+│   ├── api/               # Endpoints API
+│   │   ├── route.py       # Router principal
+│   │   └── v1/            # API versión 1
+│   │       ├── dependencies.py  # Inyección de dependencias
+│   │       └── endpoints/      # Endpoints específicos
+│   │           ├── auth.py      # Autenticación (login, Google OAuth)
+│   │           ├── users.py     # Gestión de usuarios
+│   │           └── auth/       # Módulos de auth
+│   ├── core/              # Configuración central
+│   │   └── config.py     # Settings con Pydantic
+│   ├── db/                # Base de datos
+│   │   └── session.py    # Conexión SQLAlchemy
+│   ├── domain/            # Lógica de dominio
+│   ├── interfaces/        # Contratos SOLID
+│   ├── models/            # Modelos SQLAlchemy
+│   │   ├── base.py        # Modelo base
+│   │   └── user.py        # Modelo User completo
+│   ├── repositories/      # Acceso a datos
+│   ├── schemas/           # Schemas Pydantic
+│   │   ├── auth.py        # Schemas de autenticación
+│   │   └── user.py        # Schemas de usuario
+│   ├── services/          # Lógica de negocio
+│   │   ├── auth_service.py # Servicio principal de auth
+│   │   ├── user_service.py # Gestión de usuarios
+│   │   ├── auth/          # Servicios de auth
+│   │   └── user/          # Servicios de usuarios
+│   ├── types/             # Tipos personalizados
+│   │   └── enums.py       # Enums UserRole, UserStatus
+│   └── main.py            # Entry point FastAPI
+├── tests/                 # Tests unitarios e integración
+├── scripts/               # Scripts utilitarios
+├── .env                   # Variables de entorno
+├── .env.example           # Plantilla de configuración
+├── create_test_user.py    # Script para crear usuario de prueba
+├── pyproject.toml         # Configuración Poetry
+├── poetry.lock            # Lock file de dependencias
+├── Dockerfile             # Imagen Docker
+├── docker-compose.yml     # Compose
+└── README.md              # Documentación
+```
 
-### 📁 Source Code (`app/`)
+## 🔧 Configuración Principal
 
-#### 📂 `main.py` - Entry Point
-- Configuración FastAPI con lifespan management async
-- Middleware CORS dinámico por entorno
-- Endpoints de salud (/health, /info)
-- Inclusión de routers API v1
-- Gestión de tablas de BD en startup
+### FastAPI Application (`main.py`)
+- **Lifespan Management**: Startup/shutdown asíncrono
+- **Auto-creación de tablas**: Verificación y creación en startup
+- **CORS Middleware**: Configuración dinámica por entorno
+- **Health Checks**: `/` y `/health` endpoints
+- **Documentation**: Swagger UI en `/docs`, ReDoc en `/redoc`
 
-#### 📂 `core/` - Configuración Central
-- **config.py**: Gestión de configuración con Pydantic Settings
-- **security.py**: Utilidades de seguridad (JWT, bcrypt, OAuth)
-- **middleware.py**: Middleware personalizado (opcional)
+### Settings Inteligentes (`core/config.py`)
+- **Pydantic Settings**: Configuración robusta con validación
+- **Database URL**: Construcción automática de conexión PostgreSQL
+- **CORS Dinámico**: Parseo flexible de orígenes (JSON, CSV, string)
+- **Environment Detection**: Desarrollo vs producción
+- **Google OAuth**: Configuración de cliente ID/secret
 
-#### 📂 `db/` - Base de Datos
-- **session.py**: Conexión SQLAlchemy síncrona con Neon PostgreSQL
+### Modelo de Usuario (`models/user.py`)
+```python
+class User(Base):
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    username = Column(String(50), unique=True, index=True, nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)  # bcrypt
+    full_name = Column(String(100))
+    role = Column(Enum(UserRole), default=UserRole.USER)
+    status = Column(Enum(UserStatus), default=UserStatus.ACTIVE)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+```
 
-#### 📂 `models/` - Modelos SQLAlchemy
-- **base.py**: Modelo base con ID autoincremental y timestamps
-- **user.py**: Modelo User con roles (str enum), estado, seguridad
-- **__init__.py**: Exportación de modelos
+## 🚀 Características Principales
 
-#### 📂 `schemas/` - Modelos Pydantic
-- **user.py**: Schemas para API (UserCreate, UserResponse, RoleUpdate)
-- **auth.py**: Schemas de autenticación (LoginRequest, LoginResponse, GoogleLoginRequest)
-- **__init__.py**: Exportación de schemas
+### FastAPI 0.128.0
+- **API RESTful** con documentación automática (Swagger/ReDoc)
+- **Validación de datos** con Pydantic v2
+- **Dependency Injection** nativa
+- **Async Support** con lifespan management
+- **Type Hints** obligatorios
 
-#### 📂 `interfaces/` - Contratos SOLID (DIP, ISP)
-- **auth/**: Interfaces de servicios de autenticación
-  - **IAuthService.py**: Contrato principal de autenticación
-  - **ITokenService.py**: Gestión de tokens JWT
-  - **IOAuthService.py**: Integración con proveedores OAuth
-- **user/**: Interfaces de gestión de usuarios
-  - **IUserService.py**: Lógica de negocio de usuarios
-  - **IUserRepository.py**: Acceso a datos de usuarios
-
-#### 📂 `services/` - Lógica de Negocio SOLID (S, OCP)
-- **auth/**: Servicios de autenticación
-  - **AuthService.py**: Orquestador principal de autenticación
-  - **TokenService.py**: Gestión de tokens JWT
-  - **GoogleOAuthService.py**: Integración con Google OAuth
-- **user/**: Servicios de usuarios
-  - **UserService.py**: Lógica de negocio de usuarios con validaciones
-
-#### 📂 `repositories/` - Acceso a Datos SOLID (S, DIP)
-- **UserRepository.py**: Implementación de acceso a datos de usuarios
-- **BaseRepository.py**: Repositorio base genérico
-
-#### 📂 `domain/` - Dominio Puro
-- **user_domain.py**: Lógica de negocio pura de usuarios (roles, permisos)
-
-#### 📂 `api/` - Endpoints API
-- **route.py**: Router principal con prefijo /api/v1
-- **v1/**: Endpoints versión 1
-  - **dependencies.py**: Inyección de dependencias (DIP)
-  - **endpoints/**: Endpoints específicos
-    - **auth/**: Autenticación modular
-      - **login.py**: Login tradicional
-      - **google.py**: Google OAuth
-    - **users.py**: CRUD de usuarios con permisos
-
-#### 📂 `types/` - Tipos Personalizados
-- **enums.py**: Enums para UserRole (str enum), UserStatus (str enum)
-
-### 📁 Tests (`tests/`)
-- **unit/**: Tests unitarios de servicios y repositorios
-- **integration/**: Tests de integración de endpoints
-- **e2e/**: Tests end-to-end
-
-### 📁 Archivos Adicionales
-- **README.md**: Documentación completa del backend
-- **agent.md**: Guía de desarrollo y arquitectura
-- **.windsurfrules**: Reglas específicas del IDE
-- **fix_user.py**: Script de mantenimiento (opcional)
-
-#### 📂 `services/` - Lógica de Negocio
-- **auth_service.py**: Servicios de autenticación con Google OAuth
-- **user_service.py**: Servicios de gestión de usuarios
-
-#### 📂 `domain/` - Dominio
-- **user_domain.py**: Lógica de negocio pura de usuarios (roles, permisos)
-
-#### 📂 `types/` - Tipos Personalizados
-- **enums.py**: Enums para UserRole (str enum), UserStatus (str enum)
-
-### 📁 Tests (`tests/`)
-- **test_auth.py**: Tests de autenticación
-- **test_users.py**: Tests de gestión de usuarios
-
-### 📁 Archivos Adicionales
-- **README.md**: Documentación completa del backend
-- **agent.md**: Guía de desarrollo y arquitectura
-- **.windsurfrules**: Reglas específicas del IDE
-- **fix_user.py**: Script de mantenimiento (opcional)
-
-## Características Principales
-
-### 🚀 FastAPI 0.128.0
-- API RESTful con documentación automática (Swagger)
-- Validación de datos con Pydantic
-- Soporte síncrono con SQLAlchemy
-- Dependency injection
-
-### 🗄️ PostgreSQL con Neon
-- SQLAlchemy 2.0 síncrono
-- Connection pooling optimizado
-- Migraciones automáticas en startup
-- Modelo de usuarios completo con ID autoincremental
+### PostgreSQL
+- **SQLAlchemy 2.0** con Psycopg3
+- **Connection Pooling** optimizado
+- **Schema Isolation** con search_path
+- **Auto-migrations** en startup
+- **Timezone-aware** timestamps
 
 ### 🔐 Seguridad Robusta
-- JWT con expiración configurable
-- bcrypt para password hashing
-- Google OAuth 2.0 integrado (@react-oauth/google)
-- Sistema de roles jerárquico (SUPERADMIN > ADMIN > MANAGER > USER > VIEWER > NONE)
-- httpOnly cookies + Authorization header
+- **JWT** con expiración configurable (30 min default)
+- **bcrypt** para password hashing
+- **Google OAuth 2.0** con validación de access_token
+- **Role-based Access Control** (RBAC)
+- **httpOnly cookies** + Authorization header
+- **CORS** configurable por entorno
 
-### 🏗️ Arquitectura SOLID
-- **S**: Single Responsibility - Cada clase con una sola responsabilidad
-- **O**: Open/Closed - Interfaces extensibles sin modificar código
-- **L**: Liskov Substitution - Implementaciones intercambiables
-- **I**: Interface Segregation - Interfaces específicas y pequeñas
-- **D**: Dependency Inversion - Inyección de dependencias con FastAPI
+### 🏗️ Arquitectura Limpia
+- **Domain-Driven Design** con separación clara
+- **SOLID Principles** en toda la arquitectura
+- **Dependency Injection** con interfaces
+- **Repository Pattern** para acceso a datos
+- **Service Layer** para lógica de negocio
 
-### 🛠️ Desarrollo Optimizado
-- Poetry para gestión de dependencias
-- Pre-commit hooks (black, isort, flake8, mypy)
-- Type hints obligatorios
-- Tests con pytest
+## 🎯 Sistema de Roles y Permisos
 
-## Sistema de Roles y Permisos
-
-### Roles Definidos (str enum)
-- **SUPERADMIN**: Control total del SaaS
+### Roles Definidos (UserRole enum)
+- **SUPERADMIN**: Control total del sistema
 - **ADMIN**: Gestión de usuarios y configuración
 - **MANAGER**: Gestión limitada de usuarios
 - **USER**: Acceso básico
 - **VIEWER**: Solo lectura
-- **NONE**: Sin rol asignado (pendiente de aprobación)
+- **NONE**: Sin rol asignado
 
-### Estados de Usuario (str enum)
-- **ACTIVE**: Usuario activo, puede acceder
-- **INACTIVE**: Usuario inactivo, no puede acceder
+### Estados de Usuario (UserStatus enum)
+- **ACTIVE**: Usuario activo con acceso
+- **INACTIVE**: Usuario inactivo sin acceso
 - **SUSPENDED**: Usuario suspendido temporalmente
 - **PENDING**: Usuario pendiente de aprobación
 
-### Decoradores de Seguridad
-- `get_current_user`: Autenticación básica
-- `get_current_active_user`: Usuario activo
+### 🔒 Decoradores de Seguridad
+- `get_current_user`: Autenticación básica JWT
+- `get_current_active_user`: Verifica usuario activo
 - `get_current_admin_user`: Admin o superior
 - `get_current_manager_or_admin`: Manager o superior
 - `get_current_superadmin_user`: Solo superadmin
 
-## Endpoints Principales
+## 🛣️ Endpoints API
 
 ### Autenticación (`/api/v1/auth/`)
-- `POST /login`: Login tradicional
-- `POST /google`: Google OAuth (recibe access_token)
+- `POST /login`: Login tradicional (username/password)
+- `GET /google`: Inicia flujo Google OAuth (redirección)
+- `GET /callback`: Procesa callback de Google (HTML con postMessage)
 - `POST /logout`: Cierre de sesión
+- `POST /refresh`: Refresh token JWT
 - `POST /forgot-password`: Recuperación de contraseña
 - `POST /reset-password`: Restablecimiento de contraseña
 
 ### Usuarios (`/api/v1/users/`)
-- `GET /`: Listar usuarios (admin)
-- `POST /`: Crear usuario (admin)
-- `GET /me`: Perfil actual
-- `GET /{id}`: Detalles de usuario (ID int)
-- `PUT /{id}`: Actualizar usuario
-- `DELETE /{id}`: Eliminar usuario (admin)
-- `PATCH /{id}/role`: Cambiar rol (admin)
-- `GET /pending`: Lista usuarios pendientes (solo superadmin)
+- `GET /`: Listar usuarios (paginado, admin+)
+- `POST /`: Crear usuario (admin+)
+- `GET /me`: Perfil del usuario actual
+- `GET /{id}`: Detalles de usuario por ID
+- `PUT /{id}`: Actualizar usuario completo
+- `PATCH /{id}`: Actualización parcial
+- `DELETE /{id}`: Eliminar usuario (admin+)
+- `PATCH /{id}/role`: Cambiar rol (admin+)
+- `GET /pending`: Usuarios pendientes (superadmin)
 
-### Sistema (`/health`, `/info`)
+### Sistema (`/`, `/health`)
+- `GET /`: Mensaje de bienvenida
 - `GET /health`: Estado de conexión a BD
-- `GET /info`: Información del sistema
+- `GET /docs`: Swagger UI
+- `GET /redoc`: ReDoc documentation
 
-## Flujo de Google OAuth Actualizado
+## 🔁 Flujo de Autenticación
 
-### Implementación con Access Token
-1. Frontend obtiene `access_token` de Google OAuth 2.0
-2. Frontend envía `access_token` a `/api/v1/auth/google`
-3. Backend valida token llamando a `https://www.googleapis.com/oauth2/v3/userinfo`
-4. Si el usuario no existe, se crea automáticamente con:
-   - Email como identificador principal
-   - Username único generado desde email (ej: "usuario", "usuario1", etc.)
-   - Rol por defecto: USER
-   - Estado: ACTIVE
-5. Backend genera JWT interno y establece cookie httpOnly
-6. Frontend recibe respuesta y actualiza estado
+### Login Tradicional
+1. Usuario envía `username` y `password` a `/api/v1/auth/login`
+2. Backend valida credenciales contra BD con bcrypt
+3. Genera JWT token con claims del usuario
+4. Retorna token y datos del usuario
+5. Frontend guarda token y redirige al dashboard
 
-## Comandos Principales
+### Google OAuth 2.0 con Popup
+1. **Frontend**: Usuario hace clic en "Continuar con Google"
+2. **Popup**: Se abre ventana con `GET /api/v1/auth/google`
+3. **Backend**: Redirige a Google OAuth
+4. **Google**: Usuario autoriza en popup
+5. **Google**: Redirige a `http://localhost:4321/api/v1/auth/callback?code=xxx`
+6. **Frontend**: Callback redirige a `http://localhost:8001/api/v1/auth/callback?code=xxx`
+7. **Backend**: Intercambia código por access_token, obtiene userinfo
+8. **Backend**: Crea/actualiza usuario, genera JWT interno
+9. **Backend**: Responde con HTML que cierra popup y envía datos via postMessage
+10. **Frontend**: Recibe AUTH_SUCCESS, guarda usuario, redirige a dashboard
+
+## 🛠️ Comandos de Desarrollo
 
 ```bash
-# Instalación
-poetry install               # Instalar dependencias
-poetry shell                 # Activar entorno virtual
+# Instalación y configuración
+poetry install                    # Instalar dependencias
+poetry shell                      # Activar entorno virtual
+
+# Crear usuario de prueba
+python create_test_user.py --create  # Crear usuario test/test123
+python create_test_user.py --list     # Listar usuarios existentes
 
 # Desarrollo
 poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+# o
+poetry run gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
 
 # Tests
-pytest                      # Ejecutar todos los tests
-pytest -v                   # Tests verbosos
-pytest --cov=app            # Tests con cobertura
+pytest                           # Todos los tests
+pytest -v                        # Verboso
+pytest --cov=app                 # Con cobertura
+pytest -m unit                    # Solo unit tests
+pytest -m integration            # Solo integration tests
 
 # Calidad de código
-black .                      # Formatear código
-isort .                      # Ordenar imports
-flake8 .                     # Linting
-mypy .                       # Type checking
+black .                          # Formatear
+isort .                          # Ordenar imports
+flake8 .                         # Linting
+mypy .                           # Type checking
+pre-commit run --all-files       # Todos los hooks
 ```
 
-## Variables de Entorno
+## ⚙️ Variables de Entorno
 
 ### Archivo `.env` requerido:
 ```bash
-# Environment Configuration
+# Environment
 ENVIRONMENT=development
 DEBUG=true
 SECRET_KEY=your-secret-key-here-change-in-production
 
-# Database Configuration (Neon PostgreSQL)
-PGHOST=ep-xxx.us-east-2.aws.neon.tech
+# Database (PostgreSQL)
+PGHOST=localhost
 PGPORT=5432
-PGDATABASE=your_db_name
-PGUSER=your_db_user
-PGPASSWORD=your_db_password
+PGDATABASE=authcore
+PGUSER=postgres
+PGPASSWORD=your_password
 PGSCHEMA=public
 PGSSLMODE=require
+PGCHANNELBINDING=disable
 
-# JWT Settings
+# JWT
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 ALGORITHM=HS256
 
-# CORS Settings
+# CORS (formatos soportados)
 CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000"]
+# o: CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+# o: CORS_ORIGINS="*"
 
 # Google OAuth
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# Cloudinary (opcional)
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
 ```
 
-## Integración con Frontend
+## 🔌 Integración con Frontend
 
-### Configuración Next.js
-- **Backend URL**: `http://localhost:8001` (configurable en `next.config.ts`)
-- **Rewrites**: `/backend/*` → `${BACKEND_URL}/*`
+### Configuración Astro + Svelte
+- **Backend URL**: `http://localhost:8001` (configurable)
 - **CORS**: Orígenes permitidos configurados dinámicamente
-- **COOP**: `same-origin-allow-popups` para Google OAuth
+- **Authentication**: Cookies httpOnly + Authorization header
+- **Type Safety**: Schemas compartidos via TypeScript
 
-### Flujo Google OAuth
-1. Frontend obtiene `credential` de Google
-2. Envía `credential` a `/api/v1/auth/google`
-3. Backend valida token con Google
-4. Busca/crea usuario en BD
-5. Genera JWT interno y establece cookie httpOnly
-6. Frontend recibe respuesta y actualiza estado
+### Flujo de Comunicación
+1. **Login**: Frontend → `/api/v1/auth/login` → JWT + cookie
+2. **Google OAuth**: Frontend → Google → `/api/v1/auth/google` → JWT + cookie
+3. **Protected Routes**: Frontend incluye Authorization header
+4. **User Profile**: GET `/api/v1/users/me` para datos del usuario
+5. **Logout**: POST `/api/v1/auth/logout` para cerrar sesión
 
-## Depuración y Problemas Comunes
+## 🐛 Depuración y Troubleshooting
 
-### Errores Conocidos
-- **400 Bad Request**: Variables de entorno no configuradas
-- **CORS**: Orígenes no permitidos en settings
-- **COOP**: Política bloqueando popup de Google OAuth
-- **TransportError**: Problemas de conexión con servidores Google
-- **UUID vs int**: Asegurar consistencia en tipos de ID
+### Errores Comunes
+- **400 Bad Request**: Variables de entorno faltantes o incorrectas
+- **401 Unauthorized**: Token JWT inválido o expirado
+- **403 Forbidden**: Permisos insuficientes (rol requerido)
+- **CORS Issues**: Orígenes no configurados en `CORS_ORIGINS`
+- **Database Connection**: Credenciales PostgreSQL incorrectas
+- **Google OAuth**: Client ID/secret inválidos o token expirado
 
-### Logs Útiles
-- **Startup**: Verificación de conexión a BD y creación de tablas
-- **Auth**: Errores de validación de tokens Google
-- **CORS**: Orígenes bloqueados en consola del navegador
+### Logs Útiles para Debug
+```bash
+# Startup logs - conexión a BD y creación de tablas
+🚀 Starting FastAPI app in development mode
+✅ Nuevas tablas creadas/detectadas: users
 
-## Arquitectura SOLID Detallada
+# Auth logs - validación de tokens
+❌ Error en DB: connection failed
+❌ Token validation failed: invalid_signature
 
-### Single Responsibility Principle (SRP)
+# CORS logs - orígenes bloqueados
+WARNING: CORS request blocked: Origin not allowed
+```
+
+### Herramientas de Debug
+- **Swagger UI**: `http://localhost:8001/docs` para probar endpoints
+- **Health Check**: `http://localhost:8001/health` para verificar BD
+- **Environment**: Verificar variables en `print(settings.model_dump())`
+- **Database**: Conectar a PostgreSQL para verificar datos
+
+## 🏛️ Arquitectura SOLID Detallada
+
+### **S** - Single Responsibility Principle
 - **Interfaces**: Cada interface tiene una responsabilidad específica
 - **Servicios**: Cada servicio maneja un solo dominio (auth, users, tokens)
 - **Repositorios**: Cada repositorio maneja solo una entidad
 - **Endpoints**: Cada endpoint maneja una sola operación HTTP
 
-### Open/Closed Principle (OCP)
+### **O** - Open/Closed Principle
 - **Interfaces**: Abiertas para extensión, cerradas para modificación
 - **Servicios**: Se pueden añadir nuevos proveedores OAuth sin modificar código
 - **Repositorios**: Se puede cambiar de ORM sin afectar la lógica de negocio
 
-### Liskov Substitution Principle (LSP)
+### **L** - Liskov Substitution Principle
 - **Implementaciones**: Cualquier implementación de una interface puede sustituir a otra
 - **Repositorios**: UserRepository puede ser sustituido por otro repositorio
 
-### Interface Segregation Principle (ISP)
+### **I** - Interface Segregation Principle
 - **Interfaces Específicas**: ITokenService solo tiene métodos de tokens
 - **Clientes**: Cada cliente depende solo de los métodos que necesita
 
-### Dependency Inversion Principle (DIP)
+### **D** - Dependency Inversion Principle
 - **Inyección de Dependencias**: FastAPI `Depends()` para inyectar servicios
 - **Depende de Abstracciones**: Los servicios dependen de interfaces, no de implementaciones
 - **Contenedor DI**: `dependencies.py` centraliza la configuración de dependencias
 
-## Testing Strategy
+## 🧪 Testing Strategy
 
 ### Unit Tests
-- **Servicios**: Test de lógica de negocio sin dependencias externas
+```bash
+# Tests de lógica de negocio sin dependencias externas
+pytest tests/unit/test_services.py
+pytest tests/unit/test_repositories.py
+```
+- **Servicios**: Test de lógica de negocio con mocks
 - **Repositorios**: Test de acceso a datos con BD en memoria
-- **Interfaces**: Test de contratos con mocks
+- **Interfaces**: Test de contratos con implementaciones falsas
 
 ### Integration Tests
-- **Endpoints**: Test de endpoints HTTP con base de datos de prueba
+```bash
+# Tests de endpoints HTTP con base de datos real
+pytest tests/integration/test_auth.py
+pytest tests/integration/test_users.py
+```
+- **Endpoints**: Test de endpoints API con BD de prueba
 - **OAuth**: Test de flujo de autenticación con Google sandbox
+- **Database**: Test de migraciones y modelos
 
 ### E2E Tests
-- **Flujo Completo**: Test de login tradicional y Google OAuth
-- **Permisos**: Test de roles y permisos en endpoints protegidos
+```bash
+# Tests de flujo completo
+pytest tests/e2e/test_full_auth_flow.py
+```
+- **Flujo Completo**: Login tradicional + Google OAuth con popup
+- **Permisos**: Verificación de roles en endpoints protegidos
+- **Sesiones**: Gestión de tokens y localStorage
+
+### Scripts de Testing
+- **create_test_user.py**: Creación de usuarios de prueba
+- **test_oauth.md**: Checklist completo de testing OAuth
+- **GOOGLE_OAUTH_SETUP.md**: Guía de configuración y testing
+
+### Configuración de Tests
+- **pytest.ini**: Configuración de markers y opciones
+- **conftest.py**: Fixtures para BD y clientes HTTP
+- **test_db.py**: Base de datos de testing aislada
+- **Coverage**: Configurado para excluir tests y migrations
+
+## 📦 Dependencias Principales
+
+### Core Dependencies
+```python
+fastapi = "^0.128.0"           # Web framework
+uvicorn = "^0.40.0"            # ASGI server
+sqlalchemy = "^2.0.23"         # ORM
+psycopg2-binary = "^2.9.9"     # PostgreSQL driver
+pydantic = "^2.12.5"           # Data validation
+pydantic-settings = "^2.1.0"   # Settings management
+```
+
+### Security & Auth
+```python
+python-jose = "^3.5.0"         # JWT handling
+bcrypt = "^5.0.0"              # Password hashing
+python-multipart = "^0.0.22"   # Form data
+google-auth = "^2.48.0"        # Google OAuth
+google-auth-oauthlib = "^1.2.4" # Google OAuth
+requests = "^2.32.5"           # HTTP client
+requests-oauthlib = "^2.0.0"   # OAuth client
+```
+
+### Development & Quality
+```python
+pytest = "^7.4.0"              # Testing framework
+black = "^23.0.0"               # Code formatter
+isort = "^5.12.0"               # Import sorter
+flake8 = "^6.0.0"               # Linter
+mypy = "^1.5.0"                 # Type checker
+pre-commit = "^3.4.0"           # Git hooks
+```

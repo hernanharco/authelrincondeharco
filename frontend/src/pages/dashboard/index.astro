@@ -1,4 +1,5 @@
 ---
+export const prerender = false;
 // src/pages/dashboard/index.astro
 import Layout from '../../layouts/Layout.astro';
 import { authService, type User } from '../../services/authService';
@@ -14,7 +15,14 @@ try {
 	}
 	
 	// Obtener información del usuario desde el backend
-	user = await authService.getCurrentUser();
+        // Leer token desde cookie y llamar al backend
+        const token = Astro.cookies.get('session')?.value;
+        if (!token) return Astro.redirect('/login');
+        const res = await fetch('http://localhost:8001/api/v1/users/me', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!res.ok) return Astro.redirect('/login');
+        user = await res.json();
 	isLoading = false;
 	
 	// Si no se puede obtener el usuario, redireccionar al login

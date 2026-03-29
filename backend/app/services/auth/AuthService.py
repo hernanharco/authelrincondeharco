@@ -84,16 +84,18 @@ class AuthService(IAuthService):
                     username = f"{base_username}{suffix}"
                     suffix += 1
 
-                user = await self.user_repository.create({
-                    "email": email,
-                    "username": username,
-                    "full_name": user_info.get("name", ""),
-                    "password_hash": "",          # Sin contraseña para usuarios OAuth
-                    "role": UserRole.USER,
-                    "status": UserStatus.ACTIVE,
-                    "is_active": True,
-                    "origin": "google",
-                })
+                user = await self.user_repository.create(
+                    {
+                        "email": email,
+                        "username": username,
+                        "full_name": user_info.get("name", ""),
+                        "password_hash": "",  # Sin contraseña para usuarios OAuth
+                        "role": UserRole.USER,
+                        "status": UserStatus.ACTIVE,
+                        "is_active": True,
+                        "origin": "google",
+                    }
+                )
 
             # 3. Verificar estado de la cuenta
             if not user.is_active or user.is_locked:
@@ -111,6 +113,7 @@ class AuthService(IAuthService):
             raise
         except Exception as e:
             import traceback
+
             traceback.print_exc()  # ← añade esta línea
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -139,3 +142,126 @@ class AuthService(IAuthService):
         Revoca un token de acceso.
         """
         return await self.token_service.revoke_token(token)
+
+    def process_google_login(
+        self, code: str, redirect_uri: str
+    ) -> Tuple[User, str, int]:
+        """
+        Procesa el callback de Google OAuth usando el código de autorización.
+        Método síncrono para compatibilidad con el flujo actual.
+        """
+        from datetime import datetime, timedelta, timezone
+        from jose import jwt
+        from app.core.config import settings
+        import requests as http_requests
+        import bcrypt
+
+        try:
+            # 1. Intercambiar código por access_token
+            token_url = "https://oauth2.googleapis.com/token"
+
+            data = {
+                "client_id": settings.google_client_id,
+                "client_secret": settings.google_client_secret,
+                "code": code,
+                "grant_type": "authorization_code",
+                "redirect_uri": redirect_uri,
+            }
+
+            response = http_requests.post(token_url, data=data)
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Error al intercambiar código con Google: {response.text}",
+                )
+
+            token_data = response.json()
+            access_token = token_data.get("access_token")
+
+            if not access_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"No se recibió access_token. Respuesta: {token_data}",
+                )
+
+            # 2. Obtener datos del usuario desde Google
+            userinfo_response = http_requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if userinfo_response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Error al obtener información del usuario de Google",
+                )
+
+            userinfo = userinfo_response.json()
+            email = userinfo.get("email")
+            name = userinfo.get("name", "")
+
+            if not email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No se pudo obtener email de Google",
+                )
+
+            # 3. Buscar o crear usuario
+            user = self.db.query(User).filter(User.email == email).first()
+
+            if not user:
+                base_username = email.split("@")[0]
+                username = base_username
+                counter = 1
+                while self.db.query(User).filter(User.username == username).first():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+
+                user = User(
+                    username=username,
+                    email=email,
+                    full_name=name,
+                    password_hash="",
+                    role=UserRole.USER,
+                    status=UserStatus.ACTIVE,
+                    is_active=True,
+                    is_locked=False,
+                )
+                self.db.add(user)
+                self.db.commit()
+                self.db.refresh(user)
+
+            # 4. Verificar que la cuenta no esté bloqueada
+            if user.is_locked:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cuenta bloqueada. Contacte con el administrador.",
+                )
+
+            # 5. Actualizar last_login
+            user.last_login = datetime.now(timezone.utc)
+            self.db.commit()
+
+            # 6. Generar JWT interno
+            expires_in = settings.access_token_expire_minutes * 60
+            expire = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
+            payload = {
+                "sub": str(user.id),
+                "username": user.username,
+                "email": user.email,
+                "role": user.role.value if hasattr(user.role, "value") else user.role,
+                "exp": expire,
+            }
+
+            token = jwt.encode(
+                payload, settings.SECRET_KEY, algorithm=settings.algorithm
+            )
+            return user, token, expires_in
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Error en Google OAuth: {str(e)}",
+            )

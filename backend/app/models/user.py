@@ -21,11 +21,11 @@ class User(Base):
 
     # Llave primaria (Indispensable para SQLAlchemy)
     id = Column(
-        Integer, 
-        primary_key=True, 
-        index=True, 
+        Integer,
+        primary_key=True,
+        index=True,
         autoincrement=True,
-        comment="ID único autoincremental"
+        comment="ID único autoincremental",
     )
 
     username = Column(
@@ -33,7 +33,7 @@ class User(Base):
         unique=True,
         index=True,
         nullable=False,
-        comment="Nombre de usuario único para login"
+        comment="Nombre de usuario único para login",
     )
 
     email = Column(
@@ -41,47 +41,41 @@ class User(Base):
         unique=True,
         index=True,
         nullable=False,
-        comment="Correo electrónico único del usuario"
+        comment="Correo electrónico único del usuario",
     )
 
     password_hash = Column(
-        String(255),
-        nullable=False,
-        comment="Contraseña hasheada (bcrypt)"
+        String(255), nullable=False, comment="Contraseña hasheada (bcrypt)"
     )
 
     full_name = Column(
-        String(100),
-        nullable=False,
-        comment="Nombre completo del usuario"
+        String(100), nullable=False, comment="Nombre completo del usuario"
     )
 
     role = Column(
         Enum(UserRole),
         default=UserRole.USER,
         nullable=False,
-        comment="Rol del usuario en el sistema"
+        comment="Rol del usuario en el sistema",
     )
 
     status = Column(
         Enum(UserStatus),
         default=UserStatus.PENDING,
         nullable=False,
-        comment="Estado de la cuenta del usuario"
+        comment="Estado de la cuenta del usuario",
     )
 
     is_active = Column(
         Boolean,
         default=False,
         nullable=False,
-        comment="Bandera para control rápido de acceso"
+        comment="Bandera para control rápido de acceso",
     )
 
     # Cambio sugerido: DateTime es mejor para cálculos de tiempo que String
     last_login = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Fecha y hora del último login"
+        DateTime(timezone=True), nullable=True, comment="Fecha y hora del último login"
     )
 
     # Cambio sugerido: Integer para poder operar matemáticamente (+1)
@@ -89,34 +83,59 @@ class User(Base):
         Integer,
         default=0,
         nullable=False,
-        comment="Número de intentos fallidos de login"
+        comment="Número de intentos fallidos de login",
     )
 
     is_locked = Column(
         Boolean,
         default=False,
         nullable=False,
-        comment="Indica si la cuenta está bloqueada por seguridad"
+        comment="Indica si la cuenta está bloqueada por seguridad",
     )
 
     origin = Column(
         String(255),
         nullable=True,
-        comment="URL de origen desde donde el usuario solicitó acceso"
+        comment="URL de origen desde donde el usuario solicitó acceso",
+    )
+
+    avatar_url = Column(
+        String(500),
+        nullable=True,
+        comment="URL de la foto de perfil (Google OAuth)",
+    )
+
+    notes = Column(
+        String,
+        nullable=True,
+        comment="Notas del administrador sobre el usuario",
+    )
+
+    last_ip = Column(
+        String(45),
+        nullable=True,
+        comment="Última dirección IP desde donde accedió",
+    )
+
+    login_count = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Total de inicios de sesión realizados",
     )
 
     # Timestamps automáticos (Opcional pero muy recomendado)
     created_at = Column(
-        DateTime(timezone=True), 
+        DateTime(timezone=True),
         server_default=func.now(),
-        comment="Fecha de creación del registro"
+        comment="Fecha de creación del registro",
     )
-    
+
     updated_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),  # ← añade esto
         onupdate=func.now(),
-        comment="Última actualización del registro"
+        comment="Última actualización del registro",
     )
 
     def __repr__(self) -> str:

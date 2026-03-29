@@ -21,97 +21,93 @@ from app.core.security import (
     get_current_manager_or_admin,
     get_current_superadmin_user,
 )
+from app.api.v1.dependencies import get_user_service
 
 router = APIRouter()
-
-
-def get_user_service(db: Session = Depends(get_db)) -> UserService:
-    """Dependency injection para UserService."""
-    user_repository = UserRepository(db)
-    return UserService(db, user_repository)
 
 
 @router.get("/pending", response_model=List[UserResponse])
 async def list_pending_users(
     *,
-    db: Session = Depends(get_db),
     user_service: UserService = Depends(get_user_service),
     current_user: User = Depends(get_current_superadmin_user),  # solo SUPERADMIN
 ) -> Any:
     """Lista usuarios pendientes de aprobación — vista del SUPERADMIN."""
-    return UserService(db).get_pending()
+    return user_service.get_pending()
 
 
 @router.get("/", response_model=List[UserResponse])
 async def list_users(
     *,
-    db: Session = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     search: Optional[str] = Query(None),
     role: Optional[UserRole] = Query(None),
+    user_service: UserService = Depends(get_user_service),
     current_user: User = Depends(get_current_manager_or_admin),
 ) -> Any:
-    return UserService(db).get_all(skip, limit, search, role)
+    return user_service.get_all(skip, limit, search, role)
 
 
 @router.post("/", response_model=UserResponse)
 async def create_user(
     *,
-    db: Session = Depends(get_db),
     user_in: UserCreate,
+    user_service: UserService = Depends(get_user_service),
     current_user: User = Depends(get_current_admin_user),
 ) -> Any:
-    return UserService(db).create(user_in.model_dump(), current_user)
+    return user_service.create(user_in.model_dump(), current_user)
 
 
 @router.get("/me", response_model=UserResponse)
-async def read_user_me(current_user: User = Depends(get_current_active_user)) -> Any:
+async def read_user_me(
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
     return current_user
 
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def read_user(
     *,
-    db: Session = Depends(get_db),
     user_id: int,
+    user_service: UserService = Depends(get_user_service),
     current_user: User = Depends(get_current_active_user),
 ) -> Any:
-    return UserService(db).get_by_id(user_id, current_user)
+    return user_service.get_by_id(user_id, current_user)
 
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
     *,
-    db: Session = Depends(get_db),
     user_id: int,
     user_in: UserUpdate,
+    user_service: UserService = Depends(get_user_service),
     current_user: User = Depends(get_current_active_user),
 ) -> Any:
-    return UserService(db).update(
+    return user_service.update(
         user_id, user_in.model_dump(exclude_unset=True), current_user
     )
 
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", response_model=UserResponse)
 async def delete_user(
     *,
-    db: Session = Depends(get_db),
     user_id: int,
+    user_service: UserService = Depends(get_user_service),
     current_user: User = Depends(get_current_admin_user),
 ) -> Any:
-    return UserService(db).delete(user_id, current_user)
+    return user_service.delete(user_id, current_user)
 
 
 @router.patch("/{user_id}/role", response_model=UserResponse)
 async def update_user_role(
     *,
-    db: Session = Depends(get_db),
     user_id: int,
     role_update: RoleUpdate,
+    user_service: UserService = Depends(get_user_service),
     current_user: User = Depends(get_current_admin_user),
 ) -> Any:
-    return UserService(db).update_role(user_id, role_update.role, current_user)
+    return user_service.update_role(user_id, role_update.role, current_user)
 
 
 # ```
