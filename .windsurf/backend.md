@@ -94,6 +94,7 @@ class User(Base):
 - **Dependency Injection** nativa
 - **Async Support** con lifespan management
 - **Type Hints** obligatorios
+- **Google OAuth 2.0** con flujo popup y aprobación de usuarios
 
 ### PostgreSQL
 - **SQLAlchemy 2.0** con Psycopg3
@@ -109,6 +110,7 @@ class User(Base):
 - **Role-based Access Control** (RBAC)
 - **httpOnly cookies** + Authorization header
 - **CORS** configurable por entorno
+- **User Approval System**: Usuarios nuevos de Google requieren aprobación admin
 
 ## 🎯 Sistema de Roles y Permisos
 
@@ -124,7 +126,8 @@ class User(Base):
 - **ACTIVE**: Usuario activo con acceso
 - **INACTIVE**: Usuario inactivo sin acceso
 - **SUSPENDED**: Usuario suspendido temporalmente
-- **PENDING**: Usuario pendiente de aprobación
+- **PENDING**: Usuario pendiente de aprobación (creado por Google OAuth)
+- **NONE**: Sin rol asignado (usuarios nuevos de Google OAuth)
 
 ### 🔒 Decoradores de Seguridad
 - `get_current_user`: Autenticación básica JWT
@@ -150,8 +153,12 @@ class User(Base):
 - `PATCH /{id}`: Actualización parcial
 - `DELETE /{id}`: Eliminar usuario (admin+)
 - `PATCH /{id}/role`: Cambiar rol (admin+)
-- `GET /pending`: Usuarios pendientes (superadmin)
+- `PATCH /{id}/status`: Cambiar estado (admin+)
+- `PATCH /{id}/lock`: Bloquear/desbloquear usuario (admin+)
+- `POST /{id}/notes`: Agregar notas al usuario (admin+)
+- `GET /pending`: Usuarios pendientes (admin+)
 - `GET /by-origin`: Usuarios agrupados por origen (admin+)
+- `GET /stats`: Estadísticas de usuarios (admin+)
 
 ### Sistema (`/`, `/health`)
 - `GET /`: Mensaje de bienvenida
@@ -230,27 +237,32 @@ CLOUDINARY_API_SECRET=your-api-secret
 ## 🌌 Integración con Frontend
 
 ### Configuración Astro + Svelte
-- **Backend URL**: `http://localhost:8001` (configurable)
+- **Backend URL**: `http://localhost:8001` (configurable via .env)
+- **Frontend URL**: `http://localhost:4321` (desarrollo)
 - **CORS**: Orígenes permitidos configurados dinámicamente
 - **Authentication**: Cookies httpOnly + Authorization header
 - **Type Safety**: Schemas compartidos via TypeScript
+- **API Config**: `src/config/api.config.ts` como Single Source of Truth
 
 ### Flujo de Comunicación
 1. **Login**: Frontend → `/api/v1/auth/login` → JWT + cookie
-2. **Google OAuth**: Frontend → Google → `/api/v1/auth/google` → JWT + cookie
-3. **Protected Routes**: Frontend incluye Authorization header
+2. **Google OAuth**: Frontend → Google → `/api/v1/auth/google` → `/api/v1/auth/callback` → popup postMessage → JWT + cookie
+3. **Protected Routes**: Frontend incluye Authorization header o cookie de sesión
 4. **User Profile**: GET `/api/v1/users/me` para datos del usuario
 5. **Logout**: POST `/api/v1/auth/logout` para cerrar sesión
+6. **New Google Users**: Se crean con rol NONE y estado PENDING, requieren aprobación admin
 
 ## 🐛 Depuración y Troubleshooting
 
 ### Errores Comunes
 - **400 Bad Request**: Variables de entorno faltantes o incorrectas
 - **401 Unauthorized**: Token JWT inválido o expirado
-- **403 Forbidden**: Permisos insuficientes (rol requerido)
+- **403 Forbidden**: Permisos insuficientes (rol requerido) o usuario PENDING
+- **422 Unprocessable Entity**: Error de validación en endpoints
 - **CORS Issues**: Orígenes no configurados en `CORS_ORIGINS`
 - **Database Connection**: Credenciales PostgreSQL incorrectas
 - **Google OAuth**: Client ID/secret inválidos o token expirado
+- **PENDING_APPROVAL**: Nuevo usuario Google espera aprobación de admin
 
 ### Logs Útiles para Debug
 ```bash

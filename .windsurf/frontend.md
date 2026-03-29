@@ -106,7 +106,8 @@ frontend/
 
 ### Componentes de Auth
 - **LoginForm.svelte**: Formulario tradicional con validación
-- **GoogleButton.svelte**: Botón OAuth con popup window
+- **GoogleButton.svelte**: Botón OAuth con popup window y manejo de PENDING_APPROVAL
+- **PendingApproval.svelte**: Componente para mostrar estado de aprobación pendiente
 - **authService.ts**: Servicio singleton para gestión de auth
 
 ### Flujo de Login
@@ -118,9 +119,9 @@ frontend/
 
 ### Google OAuth con Popup
 1. **Popup Window**: Apertura de ventana emergente
-2. **OAuth Flow**: Redirección a Google y callback
-3. **postMessage**: Comunicación segura entre popup y parent
-4. **Token Handling**: Procesamiento de respuesta OAuth
+2. **OAuth Flow**: Redirección a Google → callback → postMessage
+3. **PENDING_APPROVAL Handling**: Detección y redirección a login con estado pending
+4. **Token Processing**: Procesamiento de respuesta OAuth con nuevo endpoint de sesión
 5. **Session Management**: Almacenamiento de credenciales
 
 ## 🎯 Dashboard Components
@@ -248,21 +249,23 @@ pnpm astro add <package>        # Agregar integración
 
 ### 📋 Funcionalidades Disponibles
 - Login tradicional (username: testuser, password: testpass)
-- Google OAuth con cuenta Google
+- Google OAuth con cuenta Google y sistema de aprobación
 - Dashboard protegido con sidebar
 - Gestión de usuarios con tabla y filtros
-- Aprobación de usuarios pendientes
+- Aprobación de usuarios pendientes (solo admin+)
 - Usuarios agrupados por origen/proyecto
 - Sistema de badges y avatares
 - Estadísticas y gráficos
+- Manejo de estados PENDING para nuevos usuarios de Google
 
 ### 🔄 Flujo de Usuario Completo
 1. **Index → Login**: Redirección automática si no autenticado
 2. **Login tradicional**: Formulario con validación y API call
-3. **Google OAuth**: Popup con postMessage communication
+3. **Google OAuth**: Popup → Google → callback → PENDING_APPROVAL (si nuevo) → Dashboard
 4. **Dashboard**: Panel principal con estadísticas y navegación
 5. **Gestión**: CRUD completo de usuarios con roles y permisos
-6. **Logout**: Cierre de sesión y limpieza de localStorage
+6. **Aprobación**: Admin aprueba usuarios PENDING en panel dedicado
+7. **Logout**: Cierre de sesión y limpieza de localStorage
 
 ## 🌐 Despliegue y Entorno
 
@@ -280,11 +283,13 @@ pnpm astro add <package>        # Agregar integración
 ### Configuración de Entorno
 ```bash
 # .env (development)
-PUBLIC_API_URL=http://localhost:8001
+BACKEND_URL=http://localhost:8001
+PUBLIC_BACKEND_URL=http://localhost:8001
 PUBLIC_GOOGLE_CLIENT_ID=tu_google_client_id
 
 # .env (production)
-PUBLIC_API_URL=https://tu-backend.com
+BACKEND_URL=https://tu-backend.com
+PUBLIC_BACKEND_URL=https://tu-backend.com
 PUBLIC_GOOGLE_CLIENT_ID=tu_google_client_id_prod
 ```
 

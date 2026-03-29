@@ -4,7 +4,7 @@ Endpoint Google OAuth - flujo redirect con popup
 """
 import json
 import urllib.parse
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from app.services.auth.AuthService import AuthService
 from app.core.config import settings
@@ -18,7 +18,6 @@ REDIRECT_URI = "http://localhost:8001/api/v1/auth/callback"
 
 @router.get("/google")
 async def google_login():
-    """Inicia el flujo OAuth redirigiendo a Google."""
     auth_params = {
         "client_id": settings.google_client_id,
         "redirect_uri": REDIRECT_URI,
@@ -35,7 +34,17 @@ async def google_login():
 async def google_callback(
     code: str, auth_service: AuthService = Depends(get_auth_service)
 ):
-    """Google redirige aquí. Procesa el código y envía postMessage al frontend."""
+    def make_html(data: dict) -> str:
+        return f"""<!DOCTYPE html>
+<html>
+  <body>
+    <script>
+      window.opener.postMessage({json.dumps(data)}, "{FRONTEND_ORIGIN}");
+      window.close();
+    </script>
+  </body>
+</html>"""
+
     try:
         user, internal_token, expires_in = auth_service.process_google_login(
             code=code, redirect_uri=REDIRECT_URI
@@ -53,35 +62,14 @@ async def google_callback(
                 },
             },
         }
-        content = f"""<!DOCTYPE html>
-<html>
-  <body>
-    <script>
-      window.opener.postMessage({json.dumps(auth_data)}, "{FRONTEND_ORIGIN}");
-      window.close();
-    </script>
-  </body>
-</html>"""
-        return HTMLResponse(content=content)
+        return HTMLResponse(content=make_html(auth_data))
+
+    except HTTPException as e:
+        # HTTPException capturada explicitamente
+        msg = e.detail if isinstance(e.detail, str) else str(e.detail)
+        error_data = {"type": "AUTH_ERROR", "error": msg}
+        return HTMLResponse(content=make_html(error_data), status_code=200)
 
     except Exception as e:
-        error_str = str(e)
-        # Detectar PENDING_APPROVAL del HTTPException
-        if "PENDING_APPROVAL" in error_str:
-            msg = "PENDING_APPROVAL"
-        else:
-            msg = error_str
-
-        error_data = {"type": "AUTH_ERROR", "error": msg}
-        return HTMLResponse(
-            content=f"""<!DOCTYPE html>
-<html>
-  <body>
-    <script>
-      window.opener.postMessage({json.dumps(error_data)}, "{FRONTEND_ORIGIN}");
-      window.close();
-    </script>
-  </body>
-</html>""",
-            status_code=200,  # 200 para que el popup no bloquee el script
-        )
+        error_data = {"type": "AUTH_ERROR", "error": str(e)}
+        return HTMLResponse(content=make_html(error_data), status_code=200)

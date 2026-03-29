@@ -1,4 +1,3 @@
-<!-- src/components/auth/GoogleButton.svelte -->
 <script lang="ts">
   import { BACKEND_URL } from '../../config/api.config';
 
@@ -17,29 +16,25 @@
 
     const handleMessage = async (event: MessageEvent) => {
       if (event.origin !== BACKEND_URL) return;
-
       window.removeEventListener('message', handleMessage);
 
       if (event.data?.type === 'AUTH_ERROR') {
         const detail = event.data.error || '';
         if (detail.includes('PENDING_APPROVAL')) {
-          errorMsg = '✋ Tu cuenta está pendiente de aprobación. Un administrador revisará tu solicitud pronto.';
-        } else {
-          errorMsg = detail || 'Error al iniciar sesión con Google';
+          window.location.href = '/login?status=pending';
+          return;
         }
+        errorMsg = detail || 'Error al iniciar sesión con Google';
         loading = false;
         return;
       }
 
       if (event.data?.type === 'AUTH_SUCCESS') {
-        const token = event.data.payload?.token;
-
         await fetch('/api/auth/session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({ token: event.data.payload?.token }),
         });
-
         window.location.href = '/dashboard';
       }
     };
@@ -80,8 +75,7 @@
   </button>
 
   {#if errorMsg}
-    <div class="text-sm text-center px-3 py-2 rounded-lg
-      {errorMsg.includes('pendiente') ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}">
+    <div class="text-sm text-center px-3 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20">
       {errorMsg}
     </div>
   {/if}
