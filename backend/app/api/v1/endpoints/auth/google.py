@@ -2,6 +2,7 @@
 app/api/v1/endpoints/auth/google.py
 Endpoint Google OAuth - flujo redirect con popup
 """
+
 import json
 import urllib.parse
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,8 +13,9 @@ from app.api.v1.dependencies import get_auth_service
 
 router = APIRouter()
 
-FRONTEND_ORIGIN = "http://localhost:4321"
-REDIRECT_URI = "http://localhost:8001/api/v1/auth/callback"
+# Usamos configuración centralizada desde settings
+FRONTEND_ORIGIN = settings.frontend_origin or "http://localhost:4321"
+REDIRECT_URI = f"{settings.backend_url}/api/v1/auth/callback"
 
 
 @router.get("/google")
@@ -58,7 +60,9 @@ async def google_callback(
                     "email": user.email,
                     "username": user.username,
                     "full_name": user.full_name,
-                    "role": user.role.value if hasattr(user.role, "value") else user.role,
+                    "role": (
+                        user.role.value if hasattr(user.role, "value") else user.role
+                    ),
                 },
             },
         }

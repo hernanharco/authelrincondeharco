@@ -264,10 +264,11 @@ PGHOST=tu-host-postgres
 PGDATABASE=authcore
 PGUSER=tu-usuario
 PGPASSWORD=tu-password
+BACKEND_URL=https://tu-backend.com
+FRONTEND_ORIGIN=https://tu-frontend.com
 
 # Frontend  
 BACKEND_URL=https://tu-backend.com
-PUBLIC_BACKEND_URL=https://tu-backend.com
 PUBLIC_GOOGLE_CLIENT_ID=tu-client-id-produccion
 ```
 

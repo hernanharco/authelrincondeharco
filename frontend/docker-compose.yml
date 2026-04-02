@@ -1,0 +1,27 @@
+services:
+  frd-authcore:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Pasamos la URL como argumento para que Astro la "queme" en el build del cliente
+      args:
+        - PUBLIC_BACKEND_URL=${PUBLIC_BACKEND_URL}
+    container_name: authcore-frontend
+    restart: unless-stopped
+    ports:
+      - "4321:4321"
+    
+    # IMPORTANTE: En Linux, esto permite que el contenedor resuelva 'localhost' 
+    # del host si usas esa URL para el backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "localhost:host-gateway" # Obliga al contenedor a ver el puerto 8000 de tu PC
+    
+    # Para el modo SSR (Server Side Rendering), Astro usará esta variable
+    environment:
+      - PUBLIC_BACKEND_URL=${PUBLIC_BACKEND_URL}
+    
+    env_file:
+      - .env
+
+# Al no declarar 'networks', Docker crea una red bridge por defecto para este proyecto.

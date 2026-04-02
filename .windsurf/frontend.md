@@ -284,12 +284,10 @@ pnpm astro add <package>        # Agregar integración
 ```bash
 # .env (development)
 BACKEND_URL=http://localhost:8001
-PUBLIC_BACKEND_URL=http://localhost:8001
 PUBLIC_GOOGLE_CLIENT_ID=tu_google_client_id
 
 # .env (production)
 BACKEND_URL=https://tu-backend.com
-PUBLIC_BACKEND_URL=https://tu-backend.com
 PUBLIC_GOOGLE_CLIENT_ID=tu_google_client_id_prod
 ```
 

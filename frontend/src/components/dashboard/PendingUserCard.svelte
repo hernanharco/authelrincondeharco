@@ -8,8 +8,9 @@
     loading = true;
     
     try {
-      // Llamada al endpoint de FastAPI (ajusta el puerto si es necesario)
-      const response = await fetch(`http://localhost:8001/api/v1/users/${user.id}/status`, {
+      // Importamos la configuración centralizada
+      const { BACKEND_URL } = await import('../../config/api.config');
+      const response = await fetch(`${BACKEND_URL}/api/v1/users/${user.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'ACTIVE' }) // Cambiamos a ACTIVE

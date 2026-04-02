@@ -3,18 +3,25 @@ from typing import Any, List, Optional
 from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
     """
     Configuración inteligente y agnóstica para authCore.
     Maneja la construcción de DB URL, Google OAuth y parseo robusto de CORS.
     """
 
+    # --- Logging ---
+    log_level: str = Field("INFO", alias="LOG_LEVEL")
+
+    # Titulo del proyecto
+    TITLE_BACKEND: str = Field("authCore-Backend", alias="TITLE_BACKEND")
+
     # --- Configuración de Pydantic ---
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,  # Permite que las variables funcionen en Mayus/Minus
-        extra="ignore",        # Ignora variables sobrantes en el .env
+        extra="ignore",  # Ignora variables sobrantes en el .env
     )
 
     # --- Identificación del Backend ---
@@ -86,6 +93,10 @@ class Settings(BaseSettings):
             return [i.strip().strip('"').strip("'") for i in v.split(",") if i.strip()]
         return []
 
+    # --- URLs de Frontend y Backend ---
+    frontend_origin: Optional[str] = Field(None, alias="FRONTEND_ORIGIN")
+    backend_url: str = Field("http://localhost:8000", alias="BACKEND_URL")
+
     # --- Cloudinary (Opcionales por si los usas luego) ---
     cloudinary_cloud_name: Optional[str] = Field(None, alias="CLOUDINARY_CLOUD_NAME")
     cloudinary_api_key: Optional[str] = Field(None, alias="CLOUDINARY_API_KEY")
@@ -95,6 +106,7 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT.lower() == "production"
+
 
 # Instancia global única
 settings = Settings()
