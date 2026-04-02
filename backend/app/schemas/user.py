@@ -5,6 +5,7 @@ from app.types.enums import UserRole, UserStatus
 
 # --- RESPUESTAS (Lo que el API devuelve) ---
 
+
 class UserResponse(BaseModel):
     id: int
     username: str
@@ -15,8 +16,13 @@ class UserResponse(BaseModel):
     is_active: bool
     is_locked: bool
     last_login: Optional[datetime] = None
+    origin: Optional[str] = None
+    avatar_url: Optional[str] = None
+    notes: Optional[str] = None
+    last_ip: Optional[str] = None
+    login_count: int = 0
     created_at: datetime
-    updated_at: Optional[datetime] = None  # ← aquí, en UserResponse
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,16 +38,14 @@ class UserLoginResponse(BaseModel):
 
 # --- ENTRADAS (Lo que el API recibe) ---
 
+
 class GoogleLogin(BaseModel):
     # 'credential' es el nombre que envía el botón de Google por defecto
     token: str = Field(..., description="El ID Token o Access Token de Google")
     origin: Optional[str] = Field(default="google")
 
     # populate_by_name permite usar 'token' o 'credential' en el código Python
-    model_config = ConfigDict(
-        populate_by_name=True,
-        from_attributes=True
-    )
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
 class UserCreate(BaseModel):
@@ -55,6 +59,10 @@ class UserCreate(BaseModel):
     is_locked: bool = False
     origin: str = "web"
     failed_login_attempts: int = 0
+    avatar_url: Optional[str] = None
+    notes: Optional[str] = None
+    last_ip: Optional[str] = None
+    login_count: int = 0
 
 
 class UserUpdate(BaseModel):
@@ -66,9 +74,48 @@ class UserUpdate(BaseModel):
     status: Optional[UserStatus] = None
     is_active: Optional[bool] = None
     is_locked: Optional[bool] = None
-    
+    avatar_url: Optional[str] = None
+    notes: Optional[str] = None
+    last_ip: Optional[str] = None
+    login_count: Optional[int] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class RoleUpdate(BaseModel):
     role: UserRole
+
+
+class StatusUpdate(BaseModel):
+    status: UserStatus
+
+
+class LockUpdate(BaseModel):
+    is_locked: bool
+
+
+class NotesUpdate(BaseModel):
+    notes: str
+
+
+class UserStats(BaseModel):
+    total: int
+    by_role: dict[str, int]
+    by_status: dict[str, int]
+    by_origin: dict[str, int]
+    new_this_week: int
+    locked_accounts: int
+
+
+class UsersByOrigin(BaseModel):
+    origin: str
+    total_users: int
+    by_role: dict[str, int]
+    by_status: dict[str, int]
+
+class UsersByOrigin(BaseModel):
+    origin: str
+    count: int
+
+    class Config:
+        from_attributes = True

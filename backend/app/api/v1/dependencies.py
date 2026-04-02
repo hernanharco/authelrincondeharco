@@ -16,7 +16,6 @@ from app.interfaces.auth.IAuthService import IAuthService
 from app.interfaces.user.IUserService import IUserService
 from app.interfaces.user.IUserRepository import IUserRepository
 
-
 # Servicios Singleton (cacheados para rendimiento)
 @lru_cache()
 def get_token_service() -> ITokenService:

@@ -22,7 +22,7 @@ class OAuth2PasswordBearerWithCookie(OAuth2PasswordBearer):
     Permite que Swagger y Postman sigan funcionando con Bearer token.
     """
     async def __call__(self, request: Request) -> Optional[str]:
-        token: str = request.cookies.get("access_token")
+        token: str = request.cookies.get("session") or request.cookies.get("access_token")
         if not token:
             token = await super().__call__(request)
         return token
@@ -58,7 +58,7 @@ def create_access_token(
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode = {"exp": expire, "sub": str(subject)}
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.algorithm)
 
 # --- DEPENDENCIAS BASE ---
 
@@ -72,14 +72,14 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.algorithm])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
         raise credentials_exception
     return user

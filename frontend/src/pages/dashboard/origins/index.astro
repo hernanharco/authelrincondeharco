@@ -1,0 +1,46 @@
+---
+export const prerender = false;
+
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import OriginChart from '../../../components/dashboard/OriginChart.svelte';
+import { apiUrl, ENDPOINTS } from '../../../config/api.config';
+
+let originsData = [];
+let error = null;
+
+try {
+  const response = await fetch(apiUrl(ENDPOINTS.origins));
+  if (response.ok) {
+    originsData = await response.json();
+  } else {
+    error = `Error API: ${response.status}`;
+  }
+} catch (e) {
+  error = 'No se pudo conectar con el servidor';
+}
+
+const formattedStats = Array.isArray(originsData)
+  ? originsData.map((item) => ({
+      name: item.origin || 'Desconocido',
+      value: item.count || 0,
+    }))
+  : [];
+---
+
+<DashboardLayout title="Orígenes de Usuarios">
+  <div class="p-6">
+    <h1 class="text-2xl font-bold mb-6 text-gray-800">Análisis de Origen</h1>
+
+    {error && <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 text-red-700">{error}</div>}
+
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      {
+        formattedStats.length > 0 ? (
+          <OriginChart client:load data={formattedStats} />
+        ) : (
+          <p class="text-gray-400 text-center py-10">No hay datos disponibles para mostrar.</p>
+        )
+      }
+    </div>
+  </div>
+</DashboardLayout>

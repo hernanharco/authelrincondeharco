@@ -1,0 +1,206 @@
+---
+export const prerender = false;
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { getRelativeTime } from '../../../utils/date';
+import { apiUrl, ENDPOINTS } from '../../../config/api.config';
+
+// Obtener token de autenticación
+const token = Astro.cookies.get('session')?.value;
+if (!token) {
+	return Astro.redirect('/login');
+}
+
+// Obtener usuarios por origen
+let originsData = [];
+
+try {
+	const originsRes = await fetch(apiUrl('/api/v1/users/by-origin'), {
+		headers: { 'Authorization': `Bearer ${token}` }
+	});
+	
+	// Manejar respuesta 401
+	if (originsRes.status === 401) {
+		return Astro.redirect('/login');
+	}
+	
+	if (originsRes.ok) {
+		originsData = await originsRes.json();
+	}
+} catch (error) {
+	console.error('Error fetching origins data:', error);
+}
+
+function getDomainDisplay(origin: string): string {
+	if (!origin || origin === 'unknown') return 'Desconocido';
+	
+	try {
+		const url = new URL(origin);
+		return url.hostname;
+	} catch {
+		return origin;
+	}
+}
+
+function getFaviconUrl(origin: string): string {
+	if (!origin || origin === 'unknown') return '';
+	
+	try {
+		const url = new URL(origin);
+		return `${url.protocol}//${url.hostname}/favicon.ico`;
+	} catch {
+		return '';
+	}
+}
+---
+
+<DashboardLayout title="Orígenes">
+	<div class="space-y-6">
+		<!-- Header -->
+		<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+			<h2 class="text-xl font-semibold text-[#F9FAFB]">Usuarios por Proyecto</h2>
+			<p class="text-[#9CA3AF] mt-1">
+				{originsData.length === 0 
+					? 'No hay proyectos registrados' 
+					: `${originsData.length} proyectos con usuarios registrados`
+				}
+			</p>
+		</div>
+
+		{originsData.length === 0 ? (
+			<!-- Empty State -->
+			<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-12 text-center">
+				<div class="w-16 h-16 bg-[#6366F1]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+					<svg class="w-8 h-8 text-[#6366F1]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+					</svg>
+				</div>
+				<h3 class="text-lg font-semibold text-[#F9FAFB] mb-2">Sin proyectos</h3>
+				<p class="text-[#9CA3AF]">No hay usuarios registrados desde proyectos externos.</p>
+			</div>
+		) : (
+			<!-- Origins Grid -->
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+				{originsData.map((origin: any) => (
+					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+						<!-- Header -->
+						<div class="flex items-center justify-between mb-4">
+							<div class="flex items-center space-x-3">
+								{getFaviconUrl(origin.origin) ? (
+									<img 
+										src={getFaviconUrl(origin.origin)} 
+										alt="Favicon" 
+										class="w-8 h-8 rounded"
+										onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+									/>
+								) : null}
+								<div class="w-8 h-8 bg-[#6366F1] rounded flex items-center justify-center text-white font-semibold text-sm" style={getFaviconUrl(origin.origin) ? 'display: none;' : ''}>
+									{getDomainDisplay(origin.origin).charAt(0).toUpperCase()}
+								</div>
+								<div>
+									<h3 class="font-semibold text-[#F9FAFB]">
+										{getDomainDisplay(origin.origin)}
+									</h3>
+									<a 
+										href={origin.origin} 
+										target="_blank" 
+										rel="noopener noreferrer"
+										class="text-xs text-[#6366F1] hover:text-[#5558E3]"
+									>
+										Visitar sitio
+									</a>
+								</div>
+							</div>
+						</div>
+
+						<!-- Stats -->
+						<div class="space-y-3">
+							<div class="flex justify-between items-center">
+								<span class="text-sm text-[#9CA3AF]">Total usuarios</span>
+								<span class="text-lg font-semibold text-[#F9FAFB]">{origin.total_users}</span>
+							</div>
+
+							<!-- Roles Breakdown -->
+							<div>
+								<p class="text-sm text-[#9CA3AF] mb-2">Roles</p>
+								<div class="space-y-1">
+									{Object.entries(origin.by_role).map(([role, count]) => (
+										<div class="flex justify-between items-center text-xs">
+											<span class={[
+												'px-2 py-1 rounded-full',
+												role === 'SUPERADMIN' ? 'bg-[#DC2626] text-white' :
+												role === 'ADMIN' ? 'bg-[#7C3AED] text-white' :
+												role === 'MANAGER' ? 'bg-[#2563EB] text-white' :
+												role === 'USER' ? 'bg-[#10B981] text-white' :
+												role === 'VIEWER' ? 'bg-[#6B7280] text-white' :
+												'bg-[#374151] text-white'
+											].join(' ')}>
+												{role}
+											</span>
+											<span class="text-[#F9FAFB]">{count}</span>
+										</div>
+									))}
+								</div>
+							</div>
+
+							<!-- Status Breakdown -->
+							<div>
+								<p class="text-sm text-[#9CA3AF] mb-2">Estados</p>
+								<div class="space-y-1">
+									{Object.entries(origin.by_status).map(([status, count]) => (
+										<div class="flex justify-between items-center text-xs">
+											<span class={[
+												'px-2 py-1 rounded-full',
+												status === 'ACTIVE' ? 'bg-[#10B981] text-white' :
+												status === 'INACTIVE' ? 'bg-[#6B7280] text-white' :
+												status === 'SUSPENDED' ? 'bg-[#EF4444] text-white' :
+												'bg-[#F59E0B] text-white'
+											].join(' ')}>
+												{status}
+											</span>
+											<span class="text-[#F9FAFB]">{count}</span>
+										</div>
+									))}
+								</div>
+							</div>
+						</div>
+
+						<!-- Action Button -->
+						<div class="mt-4 pt-4 border-t border-[#2D3148]">
+							<a
+								href={`/dashboard/users?origin=${encodeURIComponent(origin.origin)}`}
+								class="block w-full text-center px-4 py-2 bg-[#6366F1] text-white rounded-lg hover:bg-[#5558E3] transition-colors"
+							>
+								Ver usuarios
+							</a>
+						</div>
+					</div>
+				))}
+			</div>
+		)}
+
+		<!-- Summary Stats -->
+		{originsData.length > 0 && (
+			<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+				<h3 class="text-lg font-semibold text-[#F9FAFB] mb-4">Resumen General</h3>
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+					<div class="text-center">
+						<p class="text-2xl font-bold text-[#6366F1]">{originsData.length}</p>
+						<p class="text-sm text-[#9CA3AF]">Proyectos</p>
+					</div>
+					<div class="text-center">
+						<p class="text-2xl font-bold text-[#10B981]">
+							{originsData.reduce((sum: number, origin: any) => sum + origin.total_users, 0)}
+						</p>
+						<p class="text-sm text-[#9CA3AF]">Total usuarios</p>
+					</div>
+					<div class="text-center">
+						<p class="text-2xl font-bold text-[#F59E0B]">
+							{Math.round(originsData.reduce((sum: number, origin: any) => sum + origin.total_users, 0) / originsData.length)}
+						</p>
+						<p class="text-sm text-[#9CA3AF]">Promedio por proyecto</p>
+					</div>
+				</div>
+			</div>
+		)}
+	</div>
+</DashboardLayout>

@@ -1,0 +1,89 @@
+---
+export const prerender = false;
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { getRelativeTime } from '../../../utils/date';
+import { apiUrl, ENDPOINTS } from '../../../config/api.config';
+
+// 1. Lógica del Servidor (Astro)
+const token = Astro.cookies.get('session')?.value;
+if (!token) return Astro.redirect('/login');
+
+let pendingUsers = [];
+try {
+    const response = await fetch(apiUrl(ENDPOINTS.users.pending), {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (response.status === 401) return Astro.redirect('/login');
+    if (response.ok) pendingUsers = await response.json();
+} catch (error) {
+    console.error('Error fetching:', error);
+}
+---
+
+<DashboardLayout title="Usuarios Pendientes" pendingCount={pendingUsers.length}>
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <div class="space-y-6">
+            <div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-[#F9FAFB]">Cola de Aprobación</h2>
+                <p class="text-[#9CA3AF] mt-1">
+                    {pendingUsers.length === 0 ? 'Sin pendientes' : `${pendingUsers.length} esperando aprobación`}
+                </p>
+            </div>
+
+            <div class="space-y-4">
+                {pendingUsers.map((user: any) => (
+                    <div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6 flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-12 h-12 bg-[#6366F1] rounded-full flex items-center justify-center text-white font-bold">
+                                {(user.full_name || user.username).charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <h3 class="text-[#F9FAFB] font-semibold">{user.full_name || user.username}</h3>
+                                <p class="text-sm text-[#9CA3AF]">{user.email}</p>
+                                <span class="text-xs px-2 py-1 rounded bg-[#6366F1]/20 text-[#6366F1] mt-2 inline-block">
+                                    {user.origin || 'unknown'}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex space-x-2">
+                            <button 
+                                onclick={`handleAction(${user.id}, 'approve')`}
+                                class="px-4 py-2 bg-[#10B981] text-white rounded-lg hover:bg-emerald-600 transition-all font-bold"
+                            >
+                                Aprobar
+                            </button>
+                            <button 
+                                onclick={`handleAction(${user.id}, 'reject')`}
+                                class="px-4 py-2 bg-[#EF4444] text-white rounded-lg hover:bg-red-600 transition-all font-bold"
+                            >
+                                Rechazar
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </main>
+
+    <script>
+        window.handleAction = async (userId, action) => {
+            try {
+                const response = await fetch('/api/users/action', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, action })
+                });
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const err = await response.json();
+                    alert(err.detail || "Error en la operación");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error de conexión");
+            }
+        };
+    </script>
+</DashboardLayout>

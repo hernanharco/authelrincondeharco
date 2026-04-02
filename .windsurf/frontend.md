@@ -1,303 +1,349 @@
-# Frontend AuthCore - Resumen Técnico
+# Frontend AuthCore - Documentación Real
 
-## Estructura del Proyecto
+## 🏗️ Stack Tecnológico Actual
 
-### 📁 Archivos de Configuración
-- **package.json**: Dependencias principales (Next.js 16.1.6, React 19.2.3, Tailwind CSS 4, @react-oauth/google 0.13.4, clsx, tailwind-merge)
-- **next.config.ts**: Configuración con rewrites al backend, COOP para Google OAuth, headers CORS
-- **tsconfig.json**: Configuración TypeScript estricta con paths (@/*)
-- **tailwind.config**: Configuración de Tailwind CSS 4 con CSS variables
-- **eslint.config.mjs**: Reglas ESLint para código limpio
-- **postcss.config.mjs**: Configuración PostCSS para Tailwind
-- **pnpm-workspace.yaml**: Workspace configuration para monorepo
+- **Framework**: Astro 6.1.1
+- **UI Framework**: Svelte 5.55.0 (con Runes: $state, $derived, onclick)
+- **Styling**: TailwindCSS 4.2.2
+- **TypeScript**: 5.9.3
+- **Package Manager**: pnpm
+- **Node Version**: >=22.12.0
+- **Integración**: @astrojs/svelte
 
-### 📁 Archivos de Entorno
-- **.env.local**: Variables de entorno (NEXT_PUBLIC_API_URL, NEXT_PUBLIC_GOOGLE_CLIENT_ID, BACKEND_URL)
-- **.env.example**: Plantilla de variables de entorno
-- **.gitignore**: Exclusiones de node_modules, .next, builds, .env.local
+## 📁 Estructura Real del Proyecto
 
-### 📁 Docker y Despliegue
-- **Dockerfile**: Imagen optimizada para producción
-- **.dockerignore**: Exclusiones para imagen Docker
-- **setup.sh**: Script de configuración para desarrollo/producción
-
-### 📁 Source Code (`src/`)
-
-#### 📂 `app/` - Next.js App Router
-- **layout.tsx**: Layout principal con GoogleOAuthProvider y fuentes optimizadas
-- **page.tsx**: Página principal de aterrizaje (redirect a /login)
-- **login/**: Páginas de autenticación (login, forgot-password, reset-password)
-- **dashboard/**: Dashboard principal y sub-rutas
-- **health/**: Página de monitoreo de salud
-
-#### 📂 `components/` - Componentes React SOLID
-- **AuthView.tsx**: Vista principal de autenticación con composición de componentes
-- **ui/**: Componentes atómicos reutilizables (S - Single Responsibility)
-  - **Button/index.tsx**: Botón configurable con variantes y estados
-  - **Input/index.tsx**: Input con label, iconos, validación y accesibilidad
-  - **Alert/index.tsx**: Alertas con diferentes variantes y dismissible
-  - **GoogleButton/index.tsx**: Botón específico para Google OAuth
-- **forms/**: Formularios específicos (O - Open/Closed)
-  - **LoginForm/index.tsx**: Formulario de login tradicional
-  - **ForgotPasswordForm/index.tsx**: Formulario de recuperación de contraseña
-  - **ResetPasswordForm/index.tsx**: Formulario de restablecimiento de contraseña
-- **dashboard/Overview.tsx**: Dashboard con estadísticas y actividad reciente
-- **layout/**: Layouts del dashboard (DashboardLayout, UsersDashboard)
-
-#### 📂 `hooks/` - Hooks Personalizados SOLID
-- **useAuth/index.ts**: Hook principal con inyección de dependencias (DIP)
-  - **useAuthLogin.ts**: Lógica específica de login tradicional
-  - **useAuthGoogle.ts**: Lógica específica de Google OAuth
-  - **useAuthLogout.ts**: Lógica específica de logout
-- **useUsers.ts**: CRUD de usuarios con manejo de estado optimizado
-- **useHealthCheck.ts**: Monitoreo de salud del backend
-
-#### 📂 `services/` - Lógica de Negocio SOLID (S, DIP)
-- **authService.ts**: Servicio de autenticación con interface IAuthService
-- **userService.ts**: Servicio de usuarios con interface IUserService
-- **apiService.ts**: Servicio de llamadas HTTP genérico
-
-#### 📂 `types/` - Definiciones TypeScript
-- **auth/**: Tipos para autenticación
-  - **LoginRequest.ts**: Request de login tradicional
-  - **AuthState.ts**: Estado de autenticación
-  - **GoogleResponse.ts**: Respuesta de Google OAuth
-- **user/**: Tipos para usuarios
-  - **User.ts**: Modelo de usuario
-  - **UserRole.ts**: Enum de roles
-  - **UserStatus.ts**: Enum de estados
-
-#### 📂 `config/` - Configuración
-- **api.ts**: Configuración centralizada de endpoints y URLs del API
-- **environment.ts**: Validación de variables de entorno
-
-#### 📂 `utils/` - Utilidades SOLID (S)
-- **cn.ts**: Utilidad de clases CSS (clsx + tailwind-merge)
-- **constants.ts**: Constantes centralizadas de la aplicación
-- **validation.ts**: Utilidades de validación
-- **storage.ts**: Utilidades de localStorage/sessionStorage
-
-### 📁 Archivos Adicionales
-- **README.md**: Documentación completa del proyecto
-- **agent.md**: Guía de desarrollo y mejores prácticas
-- **Google*.md**: Documentación de configuración OAuth
-- **.windsurfrules**: Reglas específicas del IDE
-
-## Características Principales
-
-### 🚀 Next.js 16 con App Router
-- Server Components y Client Components optimizados
-- Routing basado en archivos
-- Metadata API para SEO
-- React Compiler activado para optimización automática
-
-### 🎨 Tailwind CSS 4
-- Sistema de diseño moderno con CSS variables
-- Dark mode automático
-- Componentes responsive
-- Diseño moderno y accesible
-
-### 🔐 Autenticación Completa
-- Login tradicional con JWT
-- Google OAuth 2.0 integrado (@react-oauth/google)
-- Manejo de sesión persistente con localStorage
-- Redirección dinámica post-login
-- Recuperación de contraseña
-- httpOnly cookies + Authorization headers
-
-### 📊 Dashboard Interactivo
-- Estadísticas en tiempo real
-- Gestión de usuarios completa (CRUD)
-- Monitoreo de salud del sistema
-- Roles y permisos por usuario
-
-### 🛠️ Desarrollo Optimizado
-- TypeScript estricto
-- ESLint configurado
-- React Compiler activado
-- Hot reload en desarrollo
-- pnpm como gestor de paquetes
-
-## Integración con Backend
-
-### Configuración de API
-- **Backend URL**: `http://localhost:8001` (configurable en `.env.local`)
-- **Rewrites**: `/backend/*` → `${BACKEND_URL}/*`
-- **CORS**: Orígenes permitidos en backend
-- **COOP**: `same-origin-allow-popups` para Google OAuth
-
-### Flujo de Autenticación
-1. Usuario hace click en "Login with Google"
-2. @react-oauth/google obtiene `access_token` directamente
-3. Frontend envía `access_token` a `/api/v1/auth/google`
-4. Backend valida token llamando a Google userinfo API
-5. Si el usuario no existe, se crea automáticamente con username único
-6. Backend genera JWT interno y establece cookie httpOnly
-7. Frontend recibe respuesta y actualiza estado
-
-### Manejo de Sesión
-- **Persistencia**: localStorage para auth state
-- **Cookies**: httpOnly para JWT tokens
-
-## Variables de Entorno
-
-### Archivo `.env.local` requerido:
-```bash
-# API Configuration
-NEXT_PUBLIC_API_URL=http://localhost:8001
-
-# Google OAuth
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=tu_google_client_id_aqui
-
-# Backend URL (para rewrites)
-BACKEND_URL=http://localhost:8001
+```
+frontend/
+├── public/                 # Assets estáticos
+├── src/
+│   ├── components/
+│   │   ├── auth/          # Componentes de autenticación
+│   │   │   ├── LoginForm.svelte    # Formulario login tradicional
+│   │   │   └── GoogleButton.svelte # Botón OAuth con popup
+│   │   ├── common/         # Componentes reutilizables
+│   │   │   └── Icon.svelte        # Componente centralizado de iconos SVG
+│   │   └── dashboard/     # Componentes del dashboard
+│   │       ├── StatsCard.svelte    # Tarjetas de estadísticas
+│   │       ├── UserAvatar.svelte   # Avatar de usuario
+│   │       ├── RoleBadge.svelte     # Badge de rol
+│   │       ├── StatusBadge.svelte   # Badge de estado
+│   │       └── OriginBadge.svelte   # Badge de origen
+│   ├── config/
+│   │   ├── api.config.ts   # Configuración de URLs de API
+│   │   └── index.ts       # Configuración general
+│   ├── layouts/
+│   │   └── DashboardLayout.astro   # Layout principal del dashboard
+│   ├── pages/
+│   │   ├── index.astro     # Página principal (redirige a login)
+│   │   ├── login.astro     # Página de login completa
+│   │   ├── api/           # Endpoints API para callbacks
+│   │   │   └── v1/
+│   │   │       └── auth/
+│   │   │           └── callback.astro # Callback OAuth
+│   │   └── dashboard/     # Dashboard protegido
+│   │       ├── index.astro    # Panel principal
+│   │       ├── users/         # Gestión de usuarios
+│   │       │   └── index.astro
+│   │       ├── pending/       # Usuarios pendientes
+│   │       │   └── index.astro
+│   │       └── origins/       # Usuarios por origen
+│   │           └── index.astro
+│   ├── services/
+│   │   └── authService.ts # Servicio de autenticación
+│   ├── styles/
+│   │   └── global.css      # Estilos globales
+│   ├── utils/
+│   │   └── date.ts         # Utilidades de fechas
+│   └── middleware.ts          # Middleware de rutas
+├── astro.config.mjs         # Configuración de Astro
+├── svelte.config.js         # Configuración de Svelte
+├── tsconfig.json            # Configuración de TypeScript
+├── package.json             # Dependencias y scripts
+├── pnpm-lock.yaml           # Lock file de dependencias
+└── README.md                # Documentación
 ```
 
-## Comandos Principales
+## 🔧 Configuración Principal
+
+### Astro Config (`astro.config.mjs`)
+- **Integración Svelte**: `@astrojs/svelte` activado
+- **TailwindCSS**: Plugin Vite configurado
+- **Vite**: Optimizado para desarrollo rápido
+
+### Svelte 5 Runes
+- **$state**: Estado reactivo moderno
+- **$derived**: Valores computados
+- **onclick**: Manejo de eventos
+- **Componentes**: Reutilizables y tipados
+
+### TailwindCSS 4
+- **Configuración Vite**: Integración optimizada
+- **Estilos utilitarios**: Clases modernas
+- **SVG Reset**: Control de dimensiones de iconos
+
+## 🚀 Características Principales
+
+### Astro 6.1.1
+- **Islands Architecture**: Componentes interactivos
+- **File-based Routing**: Sistema de rutas por archivos
+- **API Routes**: Endpoints para callbacks OAuth
+- **Middleware**: Protección de rutas a nivel de servidor
+- **Type Safety**: TypeScript nativo
+
+### Svelte 5.55.0
+- **Runes System**: Estado reactivo moderno
+- **Component Composition**: Composición de componentes
+- **TypeScript**: Tipado fuerte completo
+- **Reactividad**: $state, $derived, $effect
+
+### TailwindCSS 4.2.2
+- **Utility-First**: Clases utilitarias modernas
+- **Responsive Design**: Mobile-first
+- **Dark Theme**: Paleta de colores consistente
+- **Custom Components**: Componentes reutilizables
+
+## 🔐 Sistema de Autenticación
+
+### Componentes de Auth
+- **LoginForm.svelte**: Formulario tradicional con validación
+- **GoogleButton.svelte**: Botón OAuth con popup window y manejo de PENDING_APPROVAL
+- **PendingApproval.svelte**: Componente para mostrar estado de aprobación pendiente
+- **authService.ts**: Servicio singleton para gestión de auth
+
+### Flujo de Login
+1. **Formulario**: Validación en cliente con feedback visual
+2. **API Call**: Envío a `/api/v1/auth/login`
+3. **Response Handling**: Procesamiento de JWT y errores
+4. **Session Storage**: Guardado de token y datos de usuario
+5. **Redirect**: Redirección automática al dashboard
+
+### Google OAuth con Popup
+1. **Popup Window**: Apertura de ventana emergente
+2. **OAuth Flow**: Redirección a Google → callback → postMessage
+3. **PENDING_APPROVAL Handling**: Detección y redirección a login con estado pending
+4. **Token Processing**: Procesamiento de respuesta OAuth con nuevo endpoint de sesión
+5. **Session Management**: Almacenamiento de credenciales
+
+## 🎯 Dashboard Components
+
+### Componentes Reutilizables
+- **Icon.svelte**: Componente centralizado de iconos SVG con mapa de iconos
+- **UserAvatar.svelte**: Avatar con iniciales o imagen
+- **RoleBadge.svelte**: Badge de rol con colores
+- **StatusBadge.svelte**: Badge de estado con indicadores
+- **OriginBadge.svelte**: Badge de origen con dominio
+
+### Layout Principal
+- **DashboardLayout.astro**: Layout con sidebar y header
+- **Autenticación**: Verificación de sesión y roles
+- **Responsive**: Diseño adaptable mobile/desktop
+- **Navigation**: Menú lateral con estados activos
+
+### Páginas del Dashboard
+- **index.astro**: Panel principal con estadísticas
+- **users/index.astro**: Gestión completa de usuarios
+- **pending/index.astro**: Aprobación de usuarios pendientes
+- **origins/index.astro**: Usuarios agrupados por origen
+
+## 🛠️ Comandos de Desarrollo
 
 ```bash
 # Instalación
-pnpm install          # Instalar dependencias
+pnpm install                    # Instalar dependencias
 
 # Desarrollo
-pnpm dev              # Servidor de desarrollo (http://localhost:3000)
+pnpm dev                        # Servidor en localhost:4321
+pnpm dev --port 3000           # En puerto personalizado
 
-# Producción
-pnpm build            # Build de producción
-pnpm start            # Servidor de producción
+# Build y Preview
+pnpm build                      # Build para producción
+pnpm preview                    # Preview local del build
 
-# Calidad de código
-pnpm lint             # Análisis de código
-pnpm lint:fix         # Corrección automática
-pnpm type-check       # Verificación de tipos TypeScript
-
-# Depuración
-pnpm dev:debug        # Desarrollo con debugging
+# CLI de Astro
+pnpm astro check                # Verificación de tipos
+pnpm astro add <package>        # Agregar integración
 ```
 
-## Estructura de Componentes
+## 📦 Dependencias Principales
 
-### Componentes de Autenticación
-- **AuthView**: Formulario principal con tabs (Login/Forgot/Reset)
-- **GoogleButton**: Integración con @react-oauth/google
-- **PasswordForm**: Formularios de recuperación/restablecimiento
+### Core Dependencies
+```json
+{
+  "dependencies": {
+    "@astrojs/svelte": "^8.0.4",
+    "@tailwindcss/vite": "^4.2.2", 
+    "astro": "^6.1.1",
+    "svelte": "^5.55.0",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.9.3"
+  }
+}
+```
 
-### Componentes de Dashboard
-- **DashboardLayout**: Layout principal del dashboard
-- **Overview**: Estadísticas y métricas
-- **UserManagement**: Tabla de usuarios con CRUD
-- **HealthMonitor**: Estado del sistema
+### Development Tools
+- **TypeScript**: Tipado fuerte y autocompletado
+- **Vite**: Build tool rápido y optimizado
+- **pnpm**: Gestor de paquetes eficiente
 
-### Hooks Personalizados
-- **useAuth**: Estado global de autenticación
-- **useUsers**: Gestión de usuarios con cache
-- **useHealthCheck**: Monitoreo periódico del backend
+## 🎨 Sistema de Diseño
 
-## Problemas Comunes y Soluciones
+### TailwindCSS 4.2.2
+- **Dark Theme**: Paleta de colores consistente
+- **Responsive**: Mobile-first approach
+- **Components**: Diseño de componentes reutilizables
+- **SVG Icons**: Sistema centralizado de iconos
 
-### Errores Conocidos
-- **400 Bad Request**: Backend URL incorrecta o variables de entorno faltantes
-- **CORS**: Orígenes no permitidos en backend
-- **COOP**: Política bloqueando popup de Google OAuth (solucionado con `same-origin-allow-popups`)
-- **Autofill Extension**: Error de extensión de navegador (no afecta funcionalidad)
+### Paleta de Colores
+- **Primarios**: Indigo (#6366F1), Success (#10B981), Warning (#F59E0B), Danger (#EF4444)
+- **Neutros**: Gris oscuro (#0F1117), Card background (#1E2130)
+- **Textos**: Blanco (#F9FAFB), Gris medio (#9CA3AF)
 
-### Depuración
-- **Console Logs**: Verificar `process.env.NEXT_PUBLIC_API_URL`
-- **Network Tab**: Revisar llamadas a `/backend/api/v1/*`
-- **Cookies**: Verificar `access_token` httpOnly cookie
-- **LocalStorage**: Comprobar `authState` persistencia
+## 🌌 Integración con Backend
 
-## Optimizaciones de Rendimiento
+### Configuración de API
+- **api.config.ts**: URLs centralizadas del backend
+- **Environment Variables**: Configuración por entorno
+- **Type Safety**: Interfaces TypeScript compartidas
 
-### React Compiler
-- Compilación automática de componentes
-- Memoización inteligente
-- Reducción de re-renders
+### Comunicación HTTP
+- **Fetch API**: Llamadas a endpoints REST
+- **Authentication**: Headers con JWT tokens
+- **Error Handling**: Manejo centralizado de errores
+- **Loading States**: Estados de carga en componentes
 
-### Bundle Optimization
-- Code splitting por rutas
-- Dynamic imports para componentes pesados
-- Optimización de imágenes Next.js
+## 🔒 Seguridad Implementada
 
-### Cache Strategy
-- localStorage para auth state
-- React Query para datos de usuarios
-- Cache de API responses
+### Frontend Security
+- **Session Management**: Tokens en localStorage
+- **Route Protection**: Middleware de verificación
+- **Input Validation**: Validación en formularios
+- **XSS Prevention**: Sanitización de datos
+- **CSRF Protection**: Tokens y headers seguros
 
-## Accesibilidad y UX
+### OAuth Security
+- **Popup Communication**: postMessage API seguro
+- **Origin Validation**: Verificación de origen del popup
+- **Token Storage**: Almacenamiento seguro de credenciales
+- **State Management**: Manejo seguro de sesión
 
-### A11y Compliance
-- Todos los inputs tienen `id` y `label` con `for`
-- Navegación por teclado
-- Screen reader friendly
-- Focus management
+## 📋 Estado Actual del Proyecto
 
-### UX Features
-- Loading states en todas las operaciones
-- Error handling con mensajes claros
-- Redirecciones inteligentes
-- Dark mode automático
-- Responsive design
+### ✅ Completamente Implementado
+- ✅ Estructura base con Astro + Svelte 5
+- ✅ Sistema de autenticación completo (tradicional + Google OAuth)
+- ✅ Dashboard con layout responsive y componentes reutilizables
+- ✅ TypeScript configurado con tipado fuerte
+- ✅ TailwindCSS 4 con diseño dark theme consistente
+- ✅ Componentes centralizados (Icon, UserAvatar, Badges)
+- ✅ Middleware de protección de rutas
+- ✅ Configuración de API centralizada
+- ✅ Manejo de errores y estados de carga
 
-## Deploy y Producción
+### 🔧 Características Técnicas
+- **Svelte 5 Runes**: $state, $derived, onclick modernos
+- **Astro Islands**: Componentes interactivos optimizados
+- **Type Safety**: Interfaces TypeScript en todo el proyecto
+- **SVG System**: Componente Icon centralizado con mapa de iconos
+- **Responsive Design**: Mobile-first con breakpoints
+- **Dark Theme**: Diseño consistente para modo oscuro
 
-### Environment Variables
-- **NEXT_PUBLIC_API_URL**: URL del backend en producción
-- **NEXT_PUBLIC_GOOGLE_CLIENT_ID**: OAuth Client ID de producción
-- **BACKEND_URL**: URL para rewrites internos
+### 📋 Funcionalidades Disponibles
+- Login tradicional (username: testuser, password: testpass)
+- Google OAuth con cuenta Google y sistema de aprobación
+- Dashboard protegido con sidebar
+- Gestión de usuarios con tabla y filtros
+- Aprobación de usuarios pendientes (solo admin+)
+- Usuarios agrupados por origen/proyecto
+- Sistema de badges y avatares
+- Estadísticas y gráficos
+- Manejo de estados PENDING para nuevos usuarios de Google
 
-### Build Optimization
-- Minificación automática
-- Tree shaking
-- Image optimization
-- Font optimization
+### 🔄 Flujo de Usuario Completo
+1. **Index → Login**: Redirección automática si no autenticado
+2. **Login tradicional**: Formulario con validación y API call
+3. **Google OAuth**: Popup → Google → callback → PENDING_APPROVAL (si nuevo) → Dashboard
+4. **Dashboard**: Panel principal con estadísticas y navegación
+5. **Gestión**: CRUD completo de usuarios con roles y permisos
+6. **Aprobación**: Admin aprueba usuarios PENDING en panel dedicado
+7. **Logout**: Cierre de sesión y limpieza de localStorage
 
-### Security Headers
-- COOP configurado para OAuth
-- CSP headers por defecto
-- X-Frame-Boundary
-- Referrer-Policy
+## 🌐 Despliegue y Entorno
 
-## Arquitectura SOLID Detallada
+### Desarrollo Local
+- **Frontend**: `http://localhost:4321`
+- **Backend**: `http://localhost:8001`
+- **Base de Datos**: Neon PostgreSQL
 
-### Single Responsibility Principle (SRP)
-- **Componentes UI**: Cada componente tiene una sola responsabilidad visual
-- **Hooks**: Cada hook maneja un solo dominio de estado
-- **Servicios**: Cada servicio maneja un solo tipo de operación
-- **Utils**: Cada utilidad tiene una sola función específica
+### Producción (Vercel)
+- **Hosting**: Vercel (stack tecnológico definido)
+- **Build**: `pnpm build` genera archivos en `./dist/`
+- **Preview**: `pnpm preview` para testing local
+- **Variables**: Configuradas en Vercel Dashboard
 
-### Open/Closed Principle (OCP)
-- **Componentes Configurables**: Props permiten extensión sin modificación
-- **Servicios**: Interfaces permiten nuevas implementaciones
-- **Formularios**: Composición permite nuevos tipos de formularios
+### Configuración de Entorno
+```bash
+# .env (development)
+BACKEND_URL=http://localhost:8001
+PUBLIC_GOOGLE_CLIENT_ID=tu_google_client_id
 
-### Liskov Substitution Principle (LSP)
-- **Implementaciones de Servicios**:AuthService puede ser sustituido por MockAuthService
-- **Componentes**: Button puede ser sustituido por LoadingButton
+# .env (production)
+BACKEND_URL=https://tu-backend.com
+PUBLIC_GOOGLE_CLIENT_ID=tu_google_client_id_prod
+```
 
-### Interface Segregation Principle (ISP)
-- **Props Interfaces**: Interfaces específicas para cada componente
-- **Service Interfaces**: Métodos específicos para cada caso de uso
-- **Type Definitions**: Tipos pequeños y específicos
+## 🎨 Sistema de Iconos SVG
 
-### Dependency Inversion Principle (DIP)
-- **Hook Dependencies**: useAuth recibe IAuthService por parámetro
-- **Service Dependencies**: Services dependen de interfaces, no de implementaciones
-- **Component Dependencies**: Componentes dependen de props, no de implementaciones
+### Componente Icon.svelte
+- **Mapa de Iconos**: Todos los iconos centralizados
+- **Sizing Control**: Dimensiones consistentes con Tailwind
+- **Types**: Tipado TypeScript para nombres de iconos
+- **Fallback**: Icono por defecto si no existe
 
-## Testing Strategy
+### Iconos Disponibles
+- **user**: Icono de usuario
+- **active**: Check de activo
+- **pending**: Reloj de pendiente
+- **locked**: Candado de bloqueado
+- **check**: Check de verificación
+- **projects**: Proyectos/orígenes
+- **calendar**: Calendario
+- **eye**: Ojo de ver
+- **edit**: Lápiz de editar
+- **search**: Lupa de buscar
+- **arrow**: Flecha de dirección
+- **logout**: Cierre de sesión
 
-### Unit Tests
-- **Component Tests**: Test de componentes con React Testing Library
-- **Hook Tests**: Test de hooks con renderHook
-- **Service Tests**: Test de servicios con mocks
+### Uso en Componentes
+```svelte
+<Icon name="user" size="5" />
+<Icon name="active" size="4" />
+<Icon name="pending" size="6" />
+```
 
-### Integration Tests
-- **API Tests**: Test de integración con backend real
-- **OAuth Tests**: Test de flujo de Google OAuth
-- **Form Tests**: Test de envío de formularios
+## 🧪 Testing Strategy
 
-### E2E Tests
-- **Playwright**: Tests end-to-end completos
-- **User Flows**: Test de flujos de usuario completos
-- **Cross-browser**: Tests en diferentes navegadores
+### Testing de Componentes
+- **Unit Tests**: Pruebas de lógica de componentes
+- **Integration Tests**: Pruebas de flujo completo
+- **E2E Tests**: Pruebas end-to-end con Playwright
+
+### Testing de Autenticación
+- **Login Flow**: Formulario → API → Dashboard
+- **OAuth Flow**: Popup → Google → Callback → Dashboard
+- **Error Handling**: Estados de error y validación
+- **Session Management**: Persistencia y cleanup
+
+## 🚀 Optimizaciones y Mejoras
+
+### Performance
+- **Code Splitting**: División de código por rutas
+- **Lazy Loading**: Carga bajo demanda de componentes
+- **Image Optimization**: Avatares e imágenes optimizadas
+- **Bundle Analysis**: Tamaño y dependencias optimizadas
+
+### UX/UI
+- **Loading States**: Indicadores visuales de carga
+- **Error Messages**: Feedback claro y amigable
+- **Responsive Design**: Adaptación a todos los dispositivos
+- **Dark Mode**: Tema oscuro consistente
+- **Microinteractions**: Animaciones y transiciones suaves

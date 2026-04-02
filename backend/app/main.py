@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Auth Core Backend",
+    title=settings.TITLE_BACKEND,
     description="Backend de autenticación con FastAPI y Neon Postgres",
     version="1.0.0",
     lifespan=lifespan,
@@ -73,7 +73,7 @@ app.include_router(api_router, prefix="/api/v1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    allow_credentials=True, # Indispensable para Auth
     allow_methods=["*"],
     allow_headers=["*"],
 )

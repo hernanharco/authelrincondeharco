@@ -1,176 +1,261 @@
 ---
-// src/pages/dashboard/index.astro
-import Layout from '../../layouts/Layout.astro';
-import { authService, type User } from '../../services/authService';
+export const prerender = false;
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import StatsCard from '../../components/dashboard/StatsCard.svelte';
+import UserAvatar from '../../components/dashboard/UserAvatar.svelte';
+import OriginBadge from '../../components/dashboard/OriginBadge.svelte';
+import Icon from '../../components/common/Icon.svelte';
+import { getRelativeTime } from '../../utils/date';
+import { apiUrl, ENDPOINTS } from '../../config/api.config';
 
-// Obtener información del usuario autenticado
-let user: User | null = null;
-let isLoading = true;
+// Obtener token de autenticación
+const token = Astro.cookies.get('session')?.value;
+if (!token) return Astro.redirect('/login');
+
+// Obtener estadísticas
+let stats = null;
+let recentUsers = [];
+let pendingUsers = [];
 
 try {
-	// Verificar que existe la cookie de sesión
-	if (!Astro.cookies.has('session')) {
+	const [statsRes, recentRes, pendingRes] = await Promise.all([
+		fetch(apiUrl(ENDPOINTS.users.stats), {
+			headers: { Authorization: `Bearer ${token}` },
+		}),
+		fetch(apiUrl(ENDPOINTS.users.list) + '?limit=5', {
+			headers: { Authorization: `Bearer ${token}` },
+		}),
+		fetch(apiUrl(ENDPOINTS.users.pending), {
+			headers: { Authorization: `Bearer ${token}` },
+		}),
+	]);
+
+	// Manejar respuesta 401
+	if (statsRes.status === 401 || recentRes.status === 401 || pendingRes.status === 401) {
 		return Astro.redirect('/login');
 	}
-	
-	// Obtener información del usuario desde el backend
-	user = await authService.getCurrentUser();
-	isLoading = false;
-	
-	// Si no se puede obtener el usuario, redireccionar al login
-	if (!user) {
-		return Astro.redirect('/login');
-	}
-} catch (error) {
-	console.error('Error al obtener usuario:', error);
-	return Astro.redirect('/login');
+
+	if (statsRes.ok) stats = await statsRes.json();
+	if (recentRes.ok) recentUsers = await recentRes.json();
+	if (pendingRes.ok) pendingUsers = await pendingRes.json();
+} catch (e) {
+	console.error(e);
 }
 ---
 
-<Layout title="Dashboard - AuthCore">
-	<div class="min-h-screen bg-gray-50">
-		<!-- Header -->
-		<header class="bg-white shadow">
-			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<div class="flex justify-between items-center py-6">
-					<h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
-					
-					{user && (
-						<div class="flex items-center space-x-4">
-							<span class="text-sm text-gray-700">
-								Bienvenido, {user.full_name || user.username}
-							</span>
-							<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-								{user.role}
-							</span>
-							<form action="/logout" method="post">
-								<button 
-									type="submit"
-									class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-								>
-									Cerrar Sesión
-								</button>
-							</form>
-						</div>
-					)}
+<DashboardLayout title="Overview" pendingCount={pendingUsers.length}>
+	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="space-y-6">
+			<!-- Header Section -->
+			<div class="bg-linear-to-r from-[#6366F1] to-[#8B5CF6] rounded-xl p-8 text-white shadow-lg">
+				<h1 class="text-3xl font-bold mb-2">Panel de Administración</h1>
+				<p class="text-white/80">Gestiona usuarios y monitorea el sistema</p>
+			</div>
+
+			<!-- Stats Cards -->
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+				<StatsCard
+					title="Total Usuarios"
+					value={stats?.total || 0}
+					color="primary"
+					iconName="user"
+				/>
+				<StatsCard
+					title="Activos"
+					value={stats?.by_status?.ACTIVE || 0}
+					color="success"
+					iconName="active"
+				/>
+				<StatsCard
+					title="Pendientes"
+					value={stats?.by_status?.PENDING || 0}
+					color="warning"
+					iconName="pending"
+				/>
+				<StatsCard
+					title="Bloqueados"
+					value={stats?.locked_accounts || 0}
+					color="danger"
+					iconName="locked"
+				/>
+			</div>
+
+			<!-- Charts Section -->
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+				<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+					<h3 class="text-lg font-semibold text-[#F9FAFB] mb-4">Distribución por Rol</h3>
+					<div class="space-y-3">
+						{
+							Object.entries(stats?.by_role || {}).map(([role, count]) => (
+								<div class="flex items-center justify-between">
+									<span class="text-sm text-[#9CA3AF]">{role}</span>
+									<div class="flex items-center">
+										<div class="w-32 bg-[#2D3148] rounded-full h-2 mr-3">
+											<div
+												class="bg-[#6366F1] h-2 rounded-full"
+												style={`width: ${stats ? (Number(count) / stats.total) * 100 : 0}%`}
+											/>
+										</div>
+										<span class="text-sm font-medium text-[#F9FAFB]">{count}</span>
+									</div>
+								</div>
+							))
+						}
+					</div>
+				</div>
+
+				<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+					<h3 class="text-lg font-semibold text-[#F9FAFB] mb-4">Distribución por Estado</h3>
+					<div class="space-y-3">
+						{
+							Object.entries(stats?.by_status || {}).map(([status, count]) => (
+								<div class="flex items-center justify-between">
+									<span class="text-sm text-[#9CA3AF]">{status}</span>
+									<div class="flex items-center">
+										<div class="w-32 bg-[#2D3148] rounded-full h-2 mr-3">
+											<div
+												class={`h-2 rounded-full ${
+													status === 'ACTIVE'
+														? 'bg-[#10B981]'
+														: status === 'PENDING'
+															? 'bg-[#F59E0B]'
+															: status === 'SUSPENDED'
+																? 'bg-[#EF4444]'
+																: 'bg-[#6B7280]'
+												}`}
+												style={`width: ${stats ? (Number(count) / stats.total) * 100 : 0}%`}
+											/>
+										</div>
+										<span class="text-sm font-medium text-[#F9FAFB]">{count}</span>
+									</div>
+								</div>
+							))
+						}
+					</div>
 				</div>
 			</div>
-		</header>
 
-		<!-- Main Content -->
-		<main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-			<div class="px-4 py-6 sm:px-0">
-				{user ? (
-					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-						<!-- Tarjeta de información del usuario -->
-						<div class="bg-white overflow-hidden shadow rounded-lg">
-							<div class="p-5">
-								<div class="flex items-center">
-									<div class="shrink-0">
-										<div class="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center">
-											<span class="text-white font-medium">
-												{user.username.charAt(0).toUpperCase()}
-											</span>
-										</div>
-									</div>
-									<div class="ml-5 w-0 flex-1">
-										<dl>
-											<dt class="text-sm font-medium text-gray-500 truncate">
-												Usuario
-											</dt>
-											<dd class="text-lg font-medium text-gray-900">
-												{user.username}
-											</dd>
-										</dl>
-									</div>
-								</div>
-							</div>
-							<div class="bg-gray-50 px-5 py-3">
-								<div class="text-sm">
-									<span class="text-gray-500">Email: </span>
-									<span class="font-medium text-gray-900">{user.email}</span>
-								</div>
-								<div class="text-sm mt-1">
-									<span class="text-gray-500">Estado: </span>
-									<span class={`font-medium ${
-										user.status === 'active' ? 'text-green-600' : 'text-red-600'
-									}`}>
-										{user.status === 'active' ? 'Activo' : 'Inactivo'}
-									</span>
-								</div>
-							</div>
-						</div>
-
-						<!-- Tarjeta de estadísticas -->
-						<div class="bg-white overflow-hidden shadow rounded-lg">
-							<div class="p-5">
-								<div class="flex items-center">
-									<div class="flex-shrink-0 bg-indigo-500 rounded-md p-3">
-										<svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-										</svg>
-									</div>
-									<div class="ml-5 w-0 flex-1">
-										<dl>
-											<dt class="text-sm font-medium text-gray-500 truncate">
-												Panel de Control
-											</dt>
-											<dd class="text-lg font-medium text-gray-900">
-												Bienvenido
-											</dd>
-										</dl>
-									</div>
-								</div>
-							</div>
-							<div class="bg-gray-50 px-5 py-3">
-								<div class="text-sm text-gray-500">
-									Sistema de autenticación con Astro + Svelte 5
-								</div>
-							</div>
-						</div>
-
-						<!-- Tarjeta de acciones rápidas -->
-						<div class="bg-white overflow-hidden shadow rounded-lg">
-							<div class="p-5">
-								<div class="flex items-center">
-									<div class="flex-shrink-0 bg-green-500 rounded-md p-3">
-										<svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-										</svg>
-									</div>
-									<div class="ml-5 w-0 flex-1">
-										<dl>
-											<dt class="text-sm font-medium text-gray-500 truncate">
-												Acciones Rápidas
-											</dt>
-											<dd class="text-lg font-medium text-gray-900">
-												Accesos
-											</dd>
-										</dl>
-									</div>
-								</div>
-							</div>
-							<div class="bg-gray-50 px-5 py-3 space-y-2">
-								<a href="/dashboard/profile" class="block text-sm text-blue-600 hover:text-blue-500">
-									→ Mi Perfil
-								</a>
-								<a href="/dashboard/settings" class="block text-sm text-blue-600 hover:text-blue-500">
-									→ Configuración
-								</a>
-							</div>
-						</div>
-					</div>
-				) : isLoading ? (
-					<div class="text-center py-12">
-						<div class="inline-block animate-spin text-4xl">⏳</div>
-						<p class="mt-4 text-gray-600">Cargando información...</p>
-					</div>
-				) : (
-					<div class="text-center py-12">
-						<p class="text-red-600">No se pudo cargar la información del usuario</p>
-					</div>
-				)}
+			<!-- Recent Users Table -->
+			<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+				<div class="flex justify-between items-center mb-4">
+					<h3 class="text-lg font-semibold text-[#F9FAFB]">Usuarios Recientes</h3>
+					<a
+						href="/dashboard/users"
+						class="text-sm text-[#6366F1] hover:text-[#5558E3] transition-colors"
+					>
+						Ver todos →
+					</a>
+				</div>
+				<div class="overflow-x-auto">
+					<table class="w-full">
+						<thead>
+							<tr class="border-b border-[#2D3148]">
+								<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Usuario</th>
+								<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Email</th>
+								<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Origen</th>
+								<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Fecha</th>
+							</tr>
+						</thead>
+						<tbody>
+							{
+								recentUsers.map((user: any) => (
+									<tr class="border-b border-[#2D3148] hover:bg-[#2D3148]/50 transition-colors">
+										<td class="py-3 px-4">
+											<div class="flex items-center">
+												<UserAvatar
+													src={user.avatar_url}
+													name={user.full_name || user.username}
+													size="sm"
+													class="mr-3"
+												/>
+												<div>
+													<div class="text-sm font-medium text-[#F9FAFB]">
+														{user.full_name || user.username}
+													</div>
+													<div class="text-xs text-[#9CA3AF]">@{user.username}</div>
+												</div>
+											</div>
+										</td>
+										<td class="py-3 px-4 text-sm text-[#9CA3AF]">{user.email}</td>
+										<td class="py-3 px-4">
+											<OriginBadge origin={user.origin || 'unknown'} />
+										</td>
+										<td class="py-3 px-4 text-sm text-[#9CA3AF]">
+											{getRelativeTime(user.created_at)}
+										</td>
+									</tr>
+								))
+							}
+						</tbody>
+					</table>
+				</div>
 			</div>
-		</main>
-	</div>
-</Layout>
+
+			<!-- Quick Actions -->
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+				<a
+					href="/dashboard/users"
+					class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-4 hover:border-[#6366F1] transition-all group"
+				>
+					<div class="flex items-center space-x-3">
+						<div
+							class="w-10 h-10 bg-[#6366F1]/10 rounded-lg flex items-center justify-center group-hover:bg-[#6366F1]/20 transition-colors shrink-0"
+						>
+							<Icon name="user" size="5" client:load />
+						</div>
+						<div>
+							<h3
+								class="text-base font-semibold text-[#F9FAFB] group-hover:text-[#6366F1] transition-colors"
+							>
+								Gestionar Usuarios
+							</h3>
+							<p class="text-xs text-[#9CA3AF] mt-1">Ver y editar todos los usuarios</p>
+						</div>
+					</div>
+				</a>
+
+				<a
+					href="/dashboard/pending"
+					class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-4 hover:border-[#F59E0B] transition-all group"
+				>
+					<div class="flex items-center space-x-3">
+						<div
+							class="w-10 h-10 bg-[#F59E0B]/10 rounded-lg flex items-center justify-center group-hover:bg-[#F59E0B]/20 transition-colors shrink-0"
+						>
+							<Icon name="pending" size="5" client:load />
+						</div>
+						<div>
+							<h3
+								class="text-base font-semibold text-[#F9FAFB] group-hover:text-[#F59E0B] transition-colors"
+							>
+								Aprobaciones Pendientes
+							</h3>
+							<p class="text-xs text-[#9CA3AF] mt-1">{pendingUsers.length} usuarios esperando</p>
+						</div>
+					</div>
+				</a>
+
+				<a
+					href="/dashboard/origins"
+					class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-4 hover:border-[#10B981] transition-all group"
+				>
+					<div class="flex items-center space-x-3">
+						<div
+							class="w-10 h-10 bg-[#10B981]/10 rounded-lg flex items-center justify-center group-hover:bg-[#10B981]/20 transition-colors shrink-0"
+						>
+							<Icon name="projects" size="5" client:load />
+						</div>
+						<div>
+							<h3
+								class="text-base font-semibold text-[#F9FAFB] group-hover:text-[#10B981] transition-colors"
+							>
+								Proyectos
+							</h3>
+							<p class="text-xs text-[#9CA3AF] mt-1">Usuarios por origen</p>
+						</div>
+					</div>
+				</a>
+			</div>
+		</div>
+	</main>
+</DashboardLayout>

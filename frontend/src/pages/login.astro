@@ -1,46 +1,82 @@
 ---
-// src/pages/login.astro
-import Layout from '../layouts/Layout.astro';
-import LoginForm from '../components/auth/LoginForm.svelte';
-import GoogleButton from '../components/auth/GoogleButton.svelte';
+export const prerender = false;
 
-// Verificar si ya hay una sesión activa
-let isLoggedIn = false;
+import Layout from "../layouts/Layout.astro";
+import LoginForm from "../components/auth/LoginForm.svelte";
+import GoogleButton from "../components/auth/GoogleButton.svelte";
+import PendingApproval from "../components/auth/PendingApproval.svelte";
+import { apiUrl, ENDPOINTS } from "../config/api.config";
 
-if (Astro.cookies.has('session')) {
-	isLoggedIn = true;
-	// Redireccionar al dashboard si ya está autenticado
-	return Astro.redirect('/dashboard');
+// Verificar sesión activa
+if (Astro.cookies.has("session")) {
+  const token = Astro.cookies.get("session")?.value;
+  if (token) {
+    const check = await fetch(apiUrl(ENDPOINTS.users.me), {
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+    if (check && check.ok) {
+      return Astro.redirect("/dashboard");
+    } else {
+      Astro.cookies.delete("session", { path: "/" });
+    }
+  }
 }
+
+// Detectar estado pending
+const status = Astro.url.searchParams.get("status");
+const isPending = status === "pending";
 ---
 
-<Layout title="Iniciar Sesión - AuthCore">
-	<div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-		<div class="max-w-md w-full space-y-8">
-			<div>
-				<h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
-					Inicia sesión en tu cuenta
-				</h2>
-				<p class="mt-2 text-center text-sm text-gray-600">
-					O{' '}
-					<a href="/register" class="font-medium text-blue-600 hover:text-blue-500">
-						regístrate para empezar
-					</a>
-				</p>
-			</div>
-			
-			<!-- Formulario de login tradicional -->
-			<LoginForm client:load />
-			
-			<!-- Botón de Google OAuth -->
-			<GoogleButton client:load />
-			
-			<!-- Enlaces adicionales -->
-			<div class="mt-6 text-center">
-				<a href="/forgot-password" class="text-sm text-blue-600 hover:text-blue-500">
-					¿Olvidaste tu contraseña?
-				</a>
-			</div>
-		</div>
-	</div>
+<Layout title={isPending ? "Solicitud Pendiente - AuthCore" : "Iniciar Sesión - AuthCore"}>
+  <main class="min-h-screen flex items-center justify-center bg-linear-to-br from-[#0F1117] via-[#1A1D27] to-[#0F1117] px-4 py-12 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full">
+      <div class="bg-[#1E2130] shadow-2xl rounded-2xl border border-[#2D3148] overflow-hidden">
+
+        {isPending ? (
+          <PendingApproval client:load />
+        ) : (
+          <div class="p-8">
+            <!-- Header -->
+            <div class="text-center mb-8">
+              <div class="mx-auto h-12 w-12 bg-[#6366F1] rounded-xl flex items-center justify-center shadow-lg mb-4">
+                <svg class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h2 class="text-3xl font-bold text-[#F9FAFB] tracking-tight">¡Bienvenido!</h2>
+              <p class="mt-2 text-sm text-[#9CA3AF]">Ingresa tus credenciales para acceder</p>
+            </div>
+
+            <!-- Formulario -->
+            <div class="space-y-6">
+              <LoginForm client:load />
+
+              <div class="relative my-6">
+                <div class="absolute inset-0 flex items-center">
+                  <div class="w-full border-t border-[#2D3148]"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                  <span class="px-3 bg-[#1E2130] text-[#6B7280]">O continúa con</span>
+                </div>
+              </div>
+
+              <GoogleButton client:load />
+            </div>
+
+            <!-- Footer -->
+            <div class="mt-8 text-center">
+              <a href="/forgot-password" class="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors">
+                ¿Olvidaste tu contraseña?
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <p class="mt-6 text-center text-xs text-[#4B5563]">
+        &copy; 2026 AuthCore — Sistema Seguro y Modular.
+      </p>
+    </div>
+  </main>
 </Layout>

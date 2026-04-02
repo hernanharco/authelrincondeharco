@@ -1,0 +1,228 @@
+---
+export const prerender = false;
+import '../styles/global.css';
+
+import { SITE_TITLE } from '../config';
+import { apiUrl, ENDPOINTS } from '../config/api.config';
+
+interface Props {
+  title: string;
+  pendingCount?: number;
+}
+
+const { title, pendingCount = 0 } = Astro.props;
+
+// Verificar autenticación
+const token = Astro.cookies.get('session')?.value;
+if (!token) {
+  return Astro.redirect('/login');
+}
+
+// Obtener información del usuario actual
+const res = await fetch(apiUrl(ENDPOINTS.users.me), {
+  headers: { Authorization: `Bearer ${token}` },
+});
+
+if (!res.ok) {
+  return Astro.redirect('/login');
+}
+
+const currentUser = await res.json();
+
+// Verificar que sea admin o superadmin
+if (!['ADMIN', 'SUPERADMIN'].includes(currentUser.role)) {
+  return Astro.redirect('/login?error=unauthorized');
+}
+
+// Obtener conteo de usuarios pendientes si no se proporciona
+let pendingUsersCount = pendingCount;
+if (pendingUsersCount === 0) {
+  try {
+    const pendingRes = await fetch(apiUrl(ENDPOINTS.users.pending), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (pendingRes.ok) {
+      const pendingUsers = await pendingRes.json();
+      pendingUsersCount = pendingUsers.length;
+    }
+  } catch (error) {
+    console.error('Error fetching pending users:', error);
+  }
+}
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="AuthCore Dashboard" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title} | {SITE_TITLE}</title>
+  </head>
+  <body class="bg-[#0F1117] text-[#F9FAFB] min-h-screen">
+    <div class="flex h-screen">
+      <!-- Sidebar -->
+      <aside class="w-60 bg-[#1A1D27] border-r border-[#2D3148] flex flex-col">
+        <!-- Logo -->
+        <div class="p-6 border-b border-[#2D3148]">
+          <h1 class="text-xl font-bold text-[#6366F1]">AuthCore</h1>
+          <p class="text-sm text-[#9CA3AF] mt-1">Panel de Administración</p>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 p-4">
+          <ul class="space-y-2">
+            <li>
+              <a
+                href="/dashboard"
+                class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-[#2D3148] text-[#F9FAFB]"
+              >
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                  ></path>
+                </svg>
+                Overview
+              </a>
+            </li>
+            <li>
+              <a
+                href="/dashboard/users"
+                class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-[#2D3148] text-[#F9FAFB]"
+              >
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                  ></path>
+                </svg>
+                Usuarios
+              </a>
+            </li>
+            <li>
+              <a
+                href="/dashboard/pending"
+                class="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-[#2D3148] text-[#F9FAFB]"
+              >
+                <div class="flex items-center">
+                  <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  Pendientes
+                </div>
+                {
+                  pendingUsersCount > 0 && (
+                    <span class="bg-[#EF4444] text-white text-xs px-2 py-1 rounded-full">
+                      {pendingUsersCount}
+                    </span>
+                  )
+                }
+              </a>
+            </li>
+            <li>
+              <a
+                href="/dashboard/origins"
+                class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-[#2D3148] text-[#F9FAFB]"
+              >
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                  ></path>
+                </svg>
+                Orígenes
+              </a>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- User Info -->
+        <div class="p-4 border-t border-[#2D3148]">
+          <div class="flex items-center">
+            <div
+              class="w-8 h-8 bg-[#6366F1] rounded-full flex items-center justify-center text-white font-semibold text-sm"
+            >
+              {currentUser.full_name ? currentUser.full_name.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div class="ml-3 flex-1">
+              <p class="text-sm font-medium text-[#F9FAFB]">
+                {currentUser.full_name || currentUser.username}
+              </p>
+              <p class="text-xs text-[#9CA3AF]">{currentUser.role}</p>
+            </div>
+            <form action="/logout" method="post">
+              <button
+                type="submit"
+                class="p-2 text-[#9CA3AF] hover:text-[#F9FAFB] transition-colors"
+                title="Cerrar sesión"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  ></path>
+                </svg>
+              </button>
+            </form>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 flex flex-col overflow-hidden">
+        <!-- Header -->
+        <header class="bg-[#1E2130] border-b border-[#2D3148] px-6 py-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h1 class="text-2xl font-semibold text-[#F9FAFB]">{title}</h1>
+              <nav class="text-sm text-[#9CA3AF] mt-1">
+                <a href="/dashboard" class="hover:text-[#F9FAFB]">Dashboard</a>
+                {
+                  title !== 'Overview' && (
+                    <>
+                      <span class="mx-2">/</span>
+                      <span>{title}</span>
+                    </>
+                  )
+                }
+              </nav>
+            </div>
+          </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="flex-1 overflow-auto p-6">
+          <slot />
+        </div>
+      </main>
+    </div>
+
+    <!-- Mobile menu button -->
+    <button
+      class="lg:hidden fixed bottom-4 right-4 bg-[#6366F1] text-white p-3 rounded-full shadow-lg"
+    >
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M4 6h16M4 12h16M4 18h16"></path>
+      </svg>
+    </button>
+  </body>
+</html>
