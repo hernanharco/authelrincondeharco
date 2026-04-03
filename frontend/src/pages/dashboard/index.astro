@@ -16,26 +16,25 @@ let recentUsers = [];
 let pendingUsers = [];
 
 try {
-  const [statsRes, recentRes, pendingRes] = await Promise.all([
-    fetch(apiUrl(ENDPOINTS.users.stats), {
-      headers: { Authorization: `Bearer ${token}` },
-    }),
-    fetch(apiUrl(ENDPOINTS.users.list) + '?limit=5', {
-      headers: { Authorization: `Bearer ${token}` },
-    }),
-    fetch(apiUrl(ENDPOINTS.users.pending), {
-      headers: { Authorization: `Bearer ${token}` },
-    }),
-  ]);
+	const [statsRes, recentRes, pendingRes] = await Promise.all([
+		fetch(apiUrl(ENDPOINTS.users.stats), {
+			headers: { Authorization: `Bearer ${token}` },
+		}),
+		fetch(apiUrl(ENDPOINTS.users.list) + '?limit=5', {
+			headers: { Authorization: `Bearer ${token}` },
+		}),
+		fetch(apiUrl(ENDPOINTS.users.pending), {
+			headers: { Authorization: `Bearer ${token}` },
+		}),
+	]);
 
-  // En lugar de redirigir, dejar que el middleware maneje el 401
-  // en la próxima navegación
-  if (statsRes.ok) stats = await statsRes.json();
-  if (recentRes.ok) recentUsers = await recentRes.json();
-  if (pendingRes.ok) pendingUsers = await pendingRes.json();
-
+	// En lugar de redirigir, dejar que el middleware maneje el 401
+	// en la próxima navegación
+	if (statsRes.ok) stats = await statsRes.json();
+	if (recentRes.ok) recentUsers = await recentRes.json();
+	if (pendingRes.ok) pendingUsers = await pendingRes.json();
 } catch (e) {
-  console.error(e);
+	console.error(e);
 }
 ---
 
@@ -43,13 +42,15 @@ try {
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<div class="space-y-6">
 			<!-- Header Section -->
-			<div class="bg-linear-to-r from-[#6366F1] to-[#8B5CF6] rounded-xl p-8 text-white shadow-lg">
-				<h1 class="text-3xl font-bold mb-2">Panel de Administración</h1>
-				<p class="text-white/80">Gestiona usuarios y monitorea el sistema</p>
+			<div
+				class="bg-linear-to-r from-[#6366F1] to-[#8B5CF6] rounded-xl p-4 sm:p-6 lg:p-8 text-white shadow-lg"
+			>
+				<h1 class="text-2xl sm:text-3xl font-bold mb-2">Panel de Administración</h1>
+				<p class="text-white/80 text-sm sm:text-base">Gestiona usuarios y monitorea el sistema</p>
 			</div>
 
 			<!-- Stats Cards -->
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
 				<StatsCard
 					title="Total Usuarios"
 					value={stats?.total || 0}
@@ -77,7 +78,7 @@ try {
 			</div>
 
 			<!-- Charts Section -->
-			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 				<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
 					<h3 class="text-lg font-semibold text-[#F9FAFB] mb-4">Distribución por Rol</h3>
 					<div class="space-y-3">
@@ -188,7 +189,7 @@ try {
 			</div>
 
 			<!-- Quick Actions -->
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 				<a
 					href="/dashboard/users"
 					class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-4 hover:border-[#6366F1] transition-all group"
