@@ -39,6 +39,9 @@ async def google_callback(
     def make_html(data: dict) -> str:
         return f"""<!DOCTYPE html>
 <html>
+  <head>
+    <meta http-equiv="Cross-Origin-Opener-Policy" content="unsafe-none">
+  </head>
   <body>
     <script>
       window.opener.postMessage({json.dumps(data)}, "{FRONTEND_ORIGIN}");

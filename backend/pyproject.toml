@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "auth-core-backend"
 version = "1.0.0"
-description = "Backend FastAPI application with Neon PostgreSQL integration"
+description = "Backend FastAPI application with PostgreSQL integration"
 authors = ["AuthCore Team"]
 readme = "README.md"
 packages = [{ include = "app" }]

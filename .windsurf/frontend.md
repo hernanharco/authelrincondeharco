@@ -272,7 +272,7 @@ pnpm astro add <package>        # Agregar integración
 ### Desarrollo Local
 - **Frontend**: `http://localhost:4321`
 - **Backend**: `http://localhost:8001`
-- **Base de Datos**: Neon PostgreSQL
+- **Base de Datos**: PostgreSQL
 
 ### Producción (Vercel)
 - **Hosting**: Vercel (stack tecnológico definido)
@@ -284,11 +284,11 @@ pnpm astro add <package>        # Agregar integración
 ```bash
 # .env (development)
 BACKEND_URL=http://localhost:8001
-PUBLIC_GOOGLE_CLIENT_ID=tu_google_client_id
+PUBLIC_GOOGLE_CLIENT_ID=YOUR_GOOGLE_OAUTH_CLIENT_ID
 
 # .env (production)
-BACKEND_URL=https://tu-backend.com
-PUBLIC_GOOGLE_CLIENT_ID=tu_google_client_id_prod
+BACKEND_URL=https://your-backend-domain.com
+PUBLIC_GOOGLE_CLIENT_ID=YOUR_GOOGLE_OAUTH_CLIENT_ID_PROD
 ```
 
 ## 🎨 Sistema de Iconos SVG

@@ -1,41 +1,27 @@
+// src/middleware/index.ts
 import { defineMiddleware } from 'astro:middleware';
+import { canAccessDashboard } from '@utils/auth.roles';
 
 export const onRequest = defineMiddleware((context, next) => {
   const { url, cookies } = context;
 
-  // Rutas públicas que no requieren autenticación
   const publicRoutes = ['/login', '/api/auth', '/_astro', '/favicon.ico'];
+  const isPublicRoute = publicRoutes.some(route => url.pathname.startsWith(route));
 
-  // Verificar si la ruta actual es pública
-  const isPublicRoute = publicRoutes.some(route =>
-    url.pathname.startsWith(route)
-  );
+  if (isPublicRoute) return next();
 
-  // Si es una ruta pública, permitir acceso
-  if (isPublicRoute) {
-    return next();
-  }
-
-  // Verificar rutas protegidas del dashboard
   if (url.pathname.startsWith('/dashboard')) {
-    // Leer la cookie de sesión
     const sessionCookie = cookies.get('session');
-
     if (!sessionCookie) {
-      // Redireccionar a login si no hay sesión
       return Response.redirect(new URL('/login?error=no_session', url), 302);
     }
 
-    // Validación básica del token (formato JWT)
     try {
-      const token = sessionCookie.value;
-      const parts = token.split('.');
-
+      const parts = sessionCookie.value.split('.');
       if (parts.length !== 3) {
         return Response.redirect(new URL('/login?error=invalid_token', url), 302);
       }
 
-      // Decodificar el payload para verificar expiración básica
       const payload = JSON.parse(atob(parts[1]));
       const now = Math.floor(Date.now() / 1000);
 
@@ -43,8 +29,11 @@ export const onRequest = defineMiddleware((context, next) => {
         return Response.redirect(new URL('/login?error=expired_token', url), 302);
       }
 
+      if (!canAccessDashboard(payload.role || '')) {
+        return Response.redirect(new URL('/login?status=pending', url), 302);
+      }
+
     } catch (error) {
-      console.error('Error validating token format:', error);
       return Response.redirect(new URL('/login?error=invalid_token', url), 302);
     }
   }

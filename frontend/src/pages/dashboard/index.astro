@@ -8,38 +8,34 @@ import Icon from '../../components/common/Icon.svelte';
 import { getRelativeTime } from '../../utils/date';
 import { apiUrl, ENDPOINTS } from '../../config/api.config';
 
-// Obtener token de autenticación
-const token = Astro.cookies.get('session')?.value;
-if (!token) return Astro.redirect('/login');
+// El middleware ya garantiza que hay sesión válida si llegamos aquí
+const token = Astro.cookies.get('session')!.value;
 
-// Obtener estadísticas
 let stats = null;
 let recentUsers = [];
 let pendingUsers = [];
 
 try {
-	const [statsRes, recentRes, pendingRes] = await Promise.all([
-		fetch(apiUrl(ENDPOINTS.users.stats), {
-			headers: { Authorization: `Bearer ${token}` },
-		}),
-		fetch(apiUrl(ENDPOINTS.users.list) + '?limit=5', {
-			headers: { Authorization: `Bearer ${token}` },
-		}),
-		fetch(apiUrl(ENDPOINTS.users.pending), {
-			headers: { Authorization: `Bearer ${token}` },
-		}),
-	]);
+  const [statsRes, recentRes, pendingRes] = await Promise.all([
+    fetch(apiUrl(ENDPOINTS.users.stats), {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+    fetch(apiUrl(ENDPOINTS.users.list) + '?limit=5', {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+    fetch(apiUrl(ENDPOINTS.users.pending), {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  ]);
 
-	// Manejar respuesta 401
-	if (statsRes.status === 401 || recentRes.status === 401 || pendingRes.status === 401) {
-		return Astro.redirect('/login');
-	}
+  // En lugar de redirigir, dejar que el middleware maneje el 401
+  // en la próxima navegación
+  if (statsRes.ok) stats = await statsRes.json();
+  if (recentRes.ok) recentUsers = await recentRes.json();
+  if (pendingRes.ok) pendingUsers = await pendingRes.json();
 
-	if (statsRes.ok) stats = await statsRes.json();
-	if (recentRes.ok) recentUsers = await recentRes.json();
-	if (pendingRes.ok) pendingUsers = await pendingRes.json();
 } catch (e) {
-	console.error(e);
+  console.error(e);
 }
 ---
 

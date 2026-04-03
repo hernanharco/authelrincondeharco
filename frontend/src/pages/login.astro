@@ -1,11 +1,13 @@
 ---
+// /src/pages/login.astro
 export const prerender = false;
 
-import Layout from "../layouts/Layout.astro";
-import LoginForm from "../components/auth/LoginForm.svelte";
-import GoogleButton from "../components/auth/GoogleButton.svelte";
-import PendingApproval from "../components/auth/PendingApproval.svelte";
-import { apiUrl, ENDPOINTS } from "../config/api.config";
+import Layout from "@layouts/Layout.astro";
+import LoginForm from "@components/auth/LoginForm.svelte";
+import GoogleButton from "@components/auth/GoogleButton.svelte";
+import PendingApproval from "@components/auth/PendingApproval.svelte";
+import { apiUrl, ENDPOINTS } from "@config/api.config";
+import { canAccessDashboard } from "@utils/auth.roles";
 
 // Verificar sesión activa
 if (Astro.cookies.has("session")) {
@@ -14,15 +16,24 @@ if (Astro.cookies.has("session")) {
     const check = await fetch(apiUrl(ENDPOINTS.users.me), {
       headers: { Authorization: `Bearer ${token}` },
     }).catch(() => null);
+
     if (check && check.ok) {
-      return Astro.redirect("/dashboard");
+      const user = await check.json();
+
+      if (canAccessDashboard(user.role || '')) {
+        return Astro.redirect("/dashboard");
+      } else {
+        const currentStatus = Astro.url.searchParams.get("status");
+        if (currentStatus !== "pending") {
+          return Astro.redirect("/login?status=pending");
+        }
+      }
     } else {
       Astro.cookies.delete("session", { path: "/" });
     }
   }
 }
 
-// Detectar estado pending
 const status = Astro.url.searchParams.get("status");
 const isPending = status === "pending";
 ---
@@ -36,7 +47,6 @@ const isPending = status === "pending";
           <PendingApproval client:load />
         ) : (
           <div class="p-8">
-            <!-- Header -->
             <div class="text-center mb-8">
               <div class="mx-auto h-12 w-12 bg-[#6366F1] rounded-xl flex items-center justify-center shadow-lg mb-4">
                 <svg class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -48,7 +58,6 @@ const isPending = status === "pending";
               <p class="mt-2 text-sm text-[#9CA3AF]">Ingresa tus credenciales para acceder</p>
             </div>
 
-            <!-- Formulario -->
             <div class="space-y-6">
               <LoginForm client:load />
 
@@ -64,7 +73,6 @@ const isPending = status === "pending";
               <GoogleButton client:load />
             </div>
 
-            <!-- Footer -->
             <div class="mt-8 text-center">
               <a href="/forgot-password" class="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors">
                 ¿Olvidaste tu contraseña?
@@ -75,7 +83,7 @@ const isPending = status === "pending";
       </div>
 
       <p class="mt-6 text-center text-xs text-[#4B5563]">
-        &copy; 2026 AuthCore — Sistema Seguro y Modular.
+        &copy; 2026 AuthCore — Sistema Seguro y Modular del elrincondeharco.com.
       </p>
     </div>
   </main>

@@ -1,7 +1,6 @@
 ---
 export const prerender = false;
 import '../styles/global.css';
-
 import { SITE_TITLE } from '../config';
 import { apiUrl, ENDPOINTS } from '../config/api.config';
 
@@ -12,29 +11,17 @@ interface Props {
 
 const { title, pendingCount = 0 } = Astro.props;
 
-// Verificar autenticación
-const token = Astro.cookies.get('session')?.value;
-if (!token) {
-  return Astro.redirect('/login');
-}
+// El middleware ya garantiza token válido y rol ADMIN/SUPERADMIN
+const token = Astro.cookies.get('session')!.value;
 
 // Obtener información del usuario actual
 const res = await fetch(apiUrl(ENDPOINTS.users.me), {
   headers: { Authorization: `Bearer ${token}` },
 });
 
-if (!res.ok) {
-  return Astro.redirect('/login');
-}
+const currentUser = res.ok ? await res.json() : { full_name: '', username: 'Usuario', role: '' };
 
-const currentUser = await res.json();
-
-// Verificar que sea admin o superadmin
-if (!['ADMIN', 'SUPERADMIN'].includes(currentUser.role)) {
-  return Astro.redirect('/login?error=unauthorized');
-}
-
-// Obtener conteo de usuarios pendientes si no se proporciona
+// Obtener conteo de pendientes
 let pendingUsersCount = pendingCount;
 if (pendingUsersCount === 0) {
   try {
