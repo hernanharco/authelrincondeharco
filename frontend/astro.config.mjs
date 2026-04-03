@@ -20,7 +20,10 @@ export default defineConfig({
   // y en el puerto que Docker espera (4321)
   server: {
     host: true, // Esto equivale a 0.0.0.0
-    port: 4321
+    port: 4321,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'unsafe-none',
+    },
   },
 
   integrations: [svelte()],

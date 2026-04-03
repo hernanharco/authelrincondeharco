@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
     local_time = datetime.now(local_tz).strftime("%Y-%m-%d %H:%M:%S")
     print(f"🌍 Timezone: {local_tz} | 🕒 Local Time: {local_time}")
 
-    print("--- Verificando conexión a NEON (development) ---")
+    print("--- Verificando conexión a Postgresql (development) ---")
     try:
         # Para SQLAlchemy síncrono dentro de async context
         def create_tables():
@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.TITLE_BACKEND,
-    description="Backend de autenticación con FastAPI y Neon Postgres",
+    description="Backend de autenticación con FastAPI y Postgres de Servidor",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",  # Swagger UI

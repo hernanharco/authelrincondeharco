@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# 1. Esperar a que la DB esté disponible (Neon o Local)
+# 1. Esperar a que la DB esté disponible (Local)
 echo "🔍 Comprobando conexión con el host '${PGHOST:-localhost}'..."
 
 python -c "

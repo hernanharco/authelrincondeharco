@@ -247,7 +247,7 @@ npm run test:e2e                  # E2E tests con Playwright
 ### Desarrollo
 - **Frontend**: `http://localhost:4321` (Astro dev)
 - **Backend**: `http://localhost:8001` (FastAPI dev)
-- **Base de Datos**: PostgreSQL local o Neon
+- **Base de Datos**: PostgreSQL local
 
 ### Producción
 - **Frontend**: Vercel (Astro build)
