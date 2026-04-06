@@ -12,7 +12,7 @@ interface Props {
 const { title, pendingCount = 0 } = Astro.props;
 
 // El middleware ya garantiza token válido y rol ADMIN/SUPERADMIN
-const token = Astro.cookies.get('session')!.value;
+const token = Astro.cookies.get('access_token')!.value;
 
 // Obtener información del usuario actual
 const res = await fetch(apiUrl(ENDPOINTS.users.me), {
@@ -177,7 +177,7 @@ if (pendingUsersCount === 0) {
       </aside>
 
       <!-- Main Content -->
-      <main class="flex-1 flex flex-col overflow-hidden">
+      <main class="flex-1 flex flex-col overflow-hidden" data-token={token}>
         <!-- Header -->
         <header class="bg-[#1E2130] border-b border-[#2D3148] px-6 py-4">
           <div class="flex items-center justify-between">

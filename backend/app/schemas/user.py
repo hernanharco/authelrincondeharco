@@ -113,6 +113,50 @@ class UsersByOrigin(BaseModel):
     by_role: dict[str, int]
     by_status: dict[str, int]
 
+
+class UserActivitySummary(BaseModel):
+    user_id: int
+    username: str
+    total_logins: int
+    last_login: Optional[datetime] = None
+    failed_attempts: int
+    is_locked: bool
+    account_age_days: int
+    recent_activity: bool
+
+
+class ProfileUpdate(BaseModel):
+    """Schema para actualizar datos del perfil (campos no sensibles)."""
+
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+class PasswordReset(BaseModel):
+    """Schema para reset de contraseña."""
+
+    new_password: str = Field(..., min_length=8)
+    confirm_password: str
+
+
+class BulkUpdateRequest(BaseModel):
+    """Schema para actualización masiva de usuarios."""
+
+    user_ids: list[int] = Field(..., min_items=1)
+    update_data: dict
+
+
+class SearchResponse(BaseModel):
+    """Schema para respuesta de búsqueda."""
+
+    users: list[UserResponse]
+    total_found: int
+    search_query: str
+
+
 class UsersByOrigin(BaseModel):
     origin: str
     count: int

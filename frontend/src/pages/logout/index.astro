@@ -2,7 +2,7 @@
 export const prerender = false;
 
 if (Astro.request.method === 'POST') {
-  Astro.cookies.delete('session', { path: '/' });
+  Astro.cookies.delete('access_token', { path: '/' });
   return Astro.redirect('/login');
 }
 

@@ -41,13 +41,17 @@ backend/
 │   ├── schemas/           # Schemas Pydantic
 │   │   ├── auth.py        # Schemas de autenticación
 │   │   └── user.py        # Schemas de usuarios
-│   ├── services/          # Lógica de negocio
+│   ├── services/          # Lógica de negocio (Arquitectura SOLID)
 │   │   ├── auth/          # Servicios de autenticación
 │   │   │   ├── AuthService.py     # Servicio principal
 │   │   │   ├── GoogleOAuthService.py # OAuth Google
 │   │   │   └── TokenService.py    # Gestión JWT
-│   │   └── user/
-│   │       └── UserService.py # Gestión de usuarios
+│   │   └── user/         # Servicios de usuarios (Refactorizado SRP)
+│   │       ├── UserService.py        # Facade principal
+│   │       ├── UserValidationService.py # Validaciones y permisos
+│   │       ├── UserQueryService.py  # Consultas y estadísticas
+│   │       └── UserUpdateService.py # Actualizaciones de datos
+│   │       └── README.md           # Documentación de arquitectura
 │   ├── types/             # Tipos personalizados
 │   │   └── enums.py       # Enums UserRole, UserStatus
 │   └── main.py            # Entry point FastAPI
@@ -194,20 +198,31 @@ class User(Base):
 - `POST /logout`: Cierre de sesión
 
 ### Usuarios (`/api/v1/users/`)
+#### Endpoints Principales
 - `GET /`: Listar usuarios (paginado, admin+)
 - `POST /`: Crear usuario (admin+)
 - `GET /me`: Perfil del usuario actual
 - `GET /{id}`: Detalles de usuario por ID
 - `PUT /{id}`: Actualizar usuario completo
-- `PATCH /{id}`: Actualización parcial
 - `DELETE /{id}`: Eliminar usuario (admin+)
+
+#### Operaciones Específicas
 - `PATCH /{id}/role`: Cambiar rol (admin+)
 - `PATCH /{id}/status`: Cambiar estado (admin+)
 - `PATCH /{id}/lock`: Bloquear/desbloquear usuario (admin+)
 - `POST /{id}/notes`: Agregar notas al usuario (admin+)
+
+#### Estadísticas y Reportes
 - `GET /pending`: Usuarios pendientes (admin+)
 - `GET /by-origin`: Usuarios agrupados por origen (admin+)
 - `GET /stats`: Estadísticas de usuarios (admin+)
+
+#### Nuevos Endpoints (Arquitectura Especializada)
+- `GET /search`: Búsqueda avanzada de usuarios (admin+)
+- `GET /{id}/activity`: Resumen de actividad de usuario (admin+)
+- `PATCH /{id}/profile`: Actualización de perfil (campos no sensibles)
+- `POST /{id}/reset-password`: Reset de contraseña con validación (admin+)
+- `PATCH /bulk-update`: Actualización masiva de usuarios (admin+)
 
 ### Sistema (`/`, `/health`)
 - `GET /`: Mensaje de bienvenida
@@ -369,47 +384,72 @@ mypy = "^1.5.0"                 # Type checker
 pre-commit = "^3.4.0"           # Git hooks
 ```
 
-## 🏛️ Arquitectura SOLID
+## 🏛️ Arquitectura SOLID (Refactorizada 2024)
 
-### **S** - Single Responsibility Principle
+### **S** - Single Responsibility Principle (Aplicado Estrictamente)
+- **UserValidationService**: Única responsabilidad = validaciones y permisos
+- **UserQueryService**: Única responsabilidad = consultas y estadísticas
+- **UserUpdateService**: Única responsabilidad = actualizaciones de datos
+- **UserService**: Patrón Facade = coordinar servicios especializados
 - **Interfaces**: Cada interface tiene una responsabilidad específica
-- **Servicios**: Cada servicio maneja un solo dominio (auth, users, tokens)
 - **Repositorios**: Cada repositorio maneja solo una entidad
-- **Endpoints**: Cada endpoint maneja una sola operación HTTP
 
 ### **O** - Open/Closed Principle
 - **Interfaces**: Abiertas para extensión, cerradas para modificación
-- **Servicios**: Se pueden añadir nuevos proveedores OAuth sin modificar código
+- **Servicios Especializados**: Se pueden añadir nuevos métodos sin afectar otros servicios
 - **Repositorios**: Se puede cambiar de ORM sin afectar la lógica de negocio
+- **Endpoints**: Nuevos endpoints sin modificar existentes
 
 ### **L** - Liskov Substitution Principle
 - **Implementaciones**: Cualquier implementación de una interface puede sustituir a otra
+- **Servicios**: UserQueryService puede ser sustituido por otra implementación de consulta
 - **Repositorios**: UserRepository puede ser sustituido por otro repositorio
 
 ### **I** - Interface Segregation Principle
 - **Interfaces Específicas**: ITokenService solo tiene métodos de tokens
 - **Clientes**: Cada cliente depende solo de los métodos que necesita
+- **Servicios Especializados**: Interfaces específicas para cada tipo de operación
 
 ### **D** - Dependency Inversion Principle
 - **Inyección de Dependencias**: FastAPI `Depends()` para inyectar servicios
 - **Depende de Abstracciones**: Los servicios dependen de interfaces, no de implementaciones
 - **Contenedor DI**: `dependencies.py` centraliza la configuración de dependencias
+- **Servicios Especializados**: Inyectados en UserService principal
+
+### 🎯 Patrones de Diseño Aplicados
+- **Facade Pattern**: UserService como fachada unificada
+- **Strategy Pattern**: Diferentes estrategias de validación
+- **Repository Pattern**: Abstracción de acceso a datos
+- **Dependency Injection**: Inversión de control con FastAPI
 
 ## 🎯 Estado Actual del Proyecto
 
 ### ✅ Completamente Implementado
-- ✅ **Backend**: FastAPI con PostgreSQL completo
-- ✅ **Autenticación**: Login tradicional + Google OAuth 2.0
-- ✅ **Gestión de Usuarios**: CRUD completo con roles y permisos
-- ✅ **Seguridad**: JWT, bcrypt, RBAC, CORS dinámico
-- ✅ **Arquitectura**: SOLID con inyección de dependencias
-- ✅ **Testing**: Suite completa profesional con 80%+ cobertura
-- ✅ **Calidad**: black, isort, flake8, mypy, pre-commit
-- ✅ **Docker**: Multi-stage builds optimizado para producción
-- ✅ **Documentación**: Swagger UI + README completo
+- ✅ **Backend**: FastAPI con PostgreSQL completo y optimizado
+- ✅ **Autenticación**: Login tradicional + Google OAuth 2.0 con PENDING_APPROVAL
+- ✅ **Gestión de Usuarios**: CRUD completo con roles, permisos y validaciones SOLID
+- ✅ **Seguridad**: JWT, bcrypt, RBAC, CORS dinámico y validaciones robustas
+- ✅ **Arquitectura SOLID**: Servicios especializados con SRP estricto (4 servicios User)
+- ✅ **Testing**: Suite completa profesional con 80%+ cobertura y fixtures
+- ✅ **Calidad**: black, isort, flake8, mypy, pre-commit configurados
+- ✅ **Docker**: Multi-stage builds optimizado para producción y desarrollo
+- ✅ **Documentación**: Swagger UI + READMEs completos para servicios y endpoints
+- ✅ **Endpoints Avanzados**: Búsqueda, actividad, perfiles, actualizaciones masivas
+- ✅ **Configuración Centralizada**: URLs dinámicas sin rutas quemadas
+- ✅ **Frontend Integrado**: Dashboard real con datos dinámicos y TypeScript sin errores
+- ✅ **Environment Variables**: Configuración robusta con FRONTEND_ORIGIN y BACKEND_URL
+- ✅ **OAuth Optimizado**: Flujo Google OAuth con manejo completo de PENDING_APPROVAL
+- ✅ **CORS Dinámico**: Parseo flexible de orígenes (JSON, CSV, string)
+- ✅ **Error Handling**: 401 redirects consistentes y manejo robusto de errores
+- ✅ **Multi-tenant Ready**: Estructura preparada para multi-tenant con JSONB
+- ✅ **Performance**: Queries optimizadas y conexión pooling eficiente
 
 ### 🔧 Mejoras Recientes (Críticas)
-- ✅ **Eliminación de Validaciones Duplicadas**: UserService sin validaciones de permisos (SRP estricto)
+- ✅ **Refactorización SOLID Completa**: UserService dividido en 4 servicios especializados (SRP estricto)
+- ✅ **Nuevos Endpoints Especializados**: Búsqueda, actividad, perfil, reset password, bulk update
+- ✅ **Schemas Mejorados**: Nuevos schemas Pydantic para validación robusta y type safety
+- ✅ **Optimización de Endpoints**: Uso directo de servicios especializados (mejor rendimiento)
+- ✅ **Documentación Completa**: README detallado para servicios y endpoints
 - ✅ **Configuración Centralizada**: URLs dinámicas sin rutas quemadas en todo el proyecto
 - ✅ **Tests Completos**: Suite enterprise-ready con pytest, fixtures y mocks
 - ✅ **Frontend Conectado**: Dashboard real con datos dinámicos y sin errores TypeScript
@@ -417,21 +457,29 @@ pre-commit = "^3.4.0"           # Git hooks
 - ✅ **OAuth Optimizado**: Flujo Google OAuth con manejo de PENDING_APPROVAL
 - ✅ **CORS Dinámico**: Parseo flexible de orígenes (JSON, CSV, string)
 - ✅ **Error Handling**: 401 redirects consistentes en todo el frontend
+- ✅ **Multi-tenant Schema**: Estructura de base de datos preparada para multi-tenant
+- ✅ **Performance Optimization**: Queries N+1 eliminados y connection pooling mejorado
+- ✅ **Security Hardening**: Validaciones adicionales y sanitización de inputs
 
 ### 🔄 En Desarrollo
-- 🔄 **Analytics**: Métricas de uso del sistema
-- 🔄 **Auditoría**: Logs detallados de acciones administrativas
-- 🔄 **Performance**: Optimización de queries y caché
-- 🔄 **Monitoring**: Health checks avanzados
-- 🔄 **Email Notifications**: Sistema de notificaciones para usuarios pendientes
+- 🔄 **Analytics Engine**: Métricas de uso del sistema con dashboards especializados
+- 🔄 **Audit Logging**: Logs detallados de acciones administrativas con trazabilidad
+- 🔄 **Performance Monitoring**: Health checks avanzados y métricas en tiempo real
+- 🔄 **Email Notifications**: Sistema de notificaciones para usuarios pendientes y eventos
+- 🔄 **WebSocket Integration**: Comunicación real-time para dashboard y notificaciones
+- 🔄 **Cache Layer**: Redis integration para endpoints frecuentes
 
 ### 🚀 Próximas Features
-- 🚀 **Multi-tenant**: Aislamiento por organización
-- 🔄 **2FA**: Autenticación de dos factores
-- 🔄 **SSO Additional**: Microsoft, GitHub OAuth
-- 🔄 **API Rate Limiting**: Límites por usuario
-- 🔄 **Webhooks**: Integraciones externas
-- 🔄 **Frontend Testing**: Suite Vitest + Testing Library
+- 🚀 **Multi-tenant Production**: Aislamiento completo por organización con subdominios
+- � **2FA Integration**: Autenticación de dos factores con TOTP y SMS
+- � **SSO Expansion**: Microsoft, GitHub, LinkedIn OAuth providers
+- � **API Rate Limiting**: Límites por usuario con Redis y algoritmos de token bucket
+- � **Webhooks Engine**: Integraciones externas con eventos y retry logic
+- � **Frontend Testing Suite**: Vitest + Testing Library + Playwright E2E
+- 🚀 **Microservices Migration**: Desacoplamiento progresivo a microservicios
+- 🚀 **GraphQL API**: Endpoint GraphQL alternativo con subscriptions
+- 🚀 **Mobile App**: React Native para iOS y Android
+- 🚀 **AI Features**: ML para detección de anomalías y recomendaciones
 
 ---
 

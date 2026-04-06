@@ -84,23 +84,26 @@ frontend/
 ## 🚀 Características Principales
 
 ### Astro 6.1.1
-- **Islands Architecture**: Componentes interactivos
+- **Islands Architecture**: Componentes interactivos optimizados
 - **File-based Routing**: Sistema de rutas por archivos
 - **API Routes**: Endpoints para callbacks OAuth
 - **Middleware**: Protección de rutas a nivel de servidor
-- **Type Safety**: TypeScript nativo
+- **Type Safety**: TypeScript nativo con imports absolutos (@config/)
+- **SSR/SSG**: Renderizado híbrido optimizado
 
-### Svelte 5.55.0
-- **Runes System**: Estado reactivo moderno
-- **Component Composition**: Composición de componentes
+### Svelte 5.55.0 (Runes Modernos)
+- **Runes System**: Estado reactivo moderno ($state, $derived, $effect)
+- **Component Composition**: Composición de componentes reutilizables
 - **TypeScript**: Tipado fuerte completo
-- **Reactividad**: $state, $derived, $effect
+- **Reactividad Granular**: Actualizaciones eficientes del DOM
+- **Event Handling**: onclick y eventos modernos
 
 ### TailwindCSS 4.2.2
 - **Utility-First**: Clases utilitarias modernas
-- **Responsive Design**: Mobile-first
+- **Responsive Design**: Mobile-first con breakpoints optimizados
 - **Dark Theme**: Paleta de colores consistente
-- **Custom Components**: Componentes reutilizables
+- **Custom Components**: Componentes reutilizables con variants
+- **SVG Reset**: Control de dimensiones de iconos
 
 ## 🔐 Sistema de Autenticación
 
@@ -117,12 +120,13 @@ frontend/
 4. **Session Storage**: Guardado de token y datos de usuario
 5. **Redirect**: Redirección automática al dashboard
 
-### Google OAuth con Popup
-1. **Popup Window**: Apertura de ventana emergente
-2. **OAuth Flow**: Redirección a Google → callback → postMessage
-3. **PENDING_APPROVAL Handling**: Detección y redirección a login con estado pending
-4. **Token Processing**: Procesamiento de respuesta OAuth con nuevo endpoint de sesión
-5. **Session Management**: Almacenamiento de credenciales
+### Google OAuth con Popup (Mejorado)
+1. **Popup Window**: Apertura de ventana emergente con dimensiones optimizadas
+2. **OAuth Flow**: Redirección a Google → callback → postMessage seguro
+3. **PENDING_APPROVAL Handling**: Detección automática y redirección con estado pendiente
+4. **Token Processing**: Procesamiento de respuesta OAuth con nuevos endpoints de sesión
+5. **Session Management**: Almacenamiento seguro de credenciales y datos de usuario
+6. **Error Recovery**: Manejo robusto de errores de OAuth y timeouts
 
 ## 🎯 Dashboard Components
 
@@ -139,11 +143,18 @@ frontend/
 - **Responsive**: Diseño adaptable mobile/desktop
 - **Navigation**: Menú lateral con estados activos
 
-### Páginas del Dashboard
-- **index.astro**: Panel principal con estadísticas
-- **users/index.astro**: Gestión completa de usuarios
-- **pending/index.astro**: Aprobación de usuarios pendientes
-- **origins/index.astro**: Usuarios agrupados por origen
+### Páginas del Dashboard (Actualizadas)
+- **index.astro**: Panel principal con estadísticas en tiempo real
+- **users/index.astro**: Gestión completa con búsqueda avanzada y filtros
+- **pending/index.astro**: Aprobación de usuarios pendientes con acciones masivas
+- **origins/index.astro**: Usuarios agrupados por origen con métricas
+
+### Nuevas Funcionalidades Integradas
+- **Búsqueda Avanzada**: Integración con endpoint `/users/search`
+- **Actividad de Usuario**: Detalles de actividad por usuario
+- **Actualización Masiva**: Operaciones bulk para admins
+- **Reset de Contraseñas**: Flujo seguro de reset de passwords
+- **Perfiles de Usuario**: Actualización de datos no sensibles
 
 ## 🛠️ Comandos de Desarrollo
 
@@ -198,18 +209,22 @@ pnpm astro add <package>        # Agregar integración
 - **Neutros**: Gris oscuro (#0F1117), Card background (#1E2130)
 - **Textos**: Blanco (#F9FAFB), Gris medio (#9CA3AF)
 
-## 🌌 Integración con Backend
+## 🌌 Integración con Backend (Actualizada)
 
-### Configuración de API
-- **api.config.ts**: URLs centralizadas del backend
-- **Environment Variables**: Configuración por entorno
-- **Type Safety**: Interfaces TypeScript compartidas
+### Configuración de API Mejorada
+- **api.config.ts**: URLs centralizadas con imports absolutos (@config/api.config)
+- **Environment Variables**: Configuración dinámica por entorno
+- **Type Safety**: Interfaces TypeScript sincronizadas con backend
+- **Error Handling**: Manejo centralizado con códigos de estado específicos
+- **Retry Logic**: Reintentos automáticos para fallos de red
 
-### Comunicación HTTP
-- **Fetch API**: Llamadas a endpoints REST
-- **Authentication**: Headers con JWT tokens
-- **Error Handling**: Manejo centralizado de errores
-- **Loading States**: Estados de carga en componentes
+### Comunicación HTTP Optimizada
+- **Fetch API**: Llamadas a endpoints REST con headers optimizados
+- **Authentication**: Headers con JWT tokens y refresh automático
+- **Error Handling**: Manejo específico por código de estado (401, 403, 422)
+- **Loading States**: Estados de carga con skeletons y spinners
+- **Caching**: Cache inteligente para datos frecuentes
+- **Pagination**: Paginación optimizada para grandes volúmenes de datos
 
 ## 🔒 Seguridad Implementada
 
@@ -229,15 +244,23 @@ pnpm astro add <package>        # Agregar integración
 ## 📋 Estado Actual del Proyecto
 
 ### ✅ Completamente Implementado
-- ✅ Estructura base con Astro + Svelte 5
-- ✅ Sistema de autenticación completo (tradicional + Google OAuth)
-- ✅ Dashboard con layout responsive y componentes reutilizables
-- ✅ TypeScript configurado con tipado fuerte
-- ✅ TailwindCSS 4 con diseño dark theme consistente
-- ✅ Componentes centralizados (Icon, UserAvatar, Badges)
-- ✅ Middleware de protección de rutas
-- ✅ Configuración de API centralizada
-- ✅ Manejo de errores y estados de carga
+- ✅ **Estructura base**: Astro + Svelte 5 con Runes modernos y TypeScript
+- ✅ **Sistema de autenticación**: Login tradicional + Google OAuth con PENDING_APPROVAL
+- ✅ **Dashboard completo**: Layout responsive con componentes reutilizables y navegación
+- ✅ **TypeScript**: Tipado fuerte completo con interfaces sincronizadas
+- ✅ **TailwindCSS 4**: Diseño dark theme consistente y componentes optimizados
+- ✅ **Componentes centralizados**: Icon, UserAvatar, Badges con mapa de iconos completo
+- ✅ **Middleware de rutas**: Protección automática con detección de sesión
+- ✅ **Configuración API**: URLs centralizadas con imports absolutos (@config/api.config)
+- ✅ **Error handling**: Manejo robusto de errores y estados de carga
+- ✅ **Svelte 5 Runes**: $state, $derived, onclick modernos implementados
+- ✅ **Astro Islands**: Componentes interactivos optimizados con SSR/SSG híbrido
+- ✅ **SVG System**: Componente Icon centralizado con 15+ iconos disponibles
+- ✅ **Responsive Design**: Mobile-first con breakpoints optimizados
+- ✅ **Dark Theme**: Diseño consistente para modo oscuro con paleta profesional
+- ✅ **API Integration**: Comunicación HTTP optimizada con headers y retry logic
+- ✅ **Loading States**: Skeletons y spinners para mejor UX
+- ✅ **Performance**: Paginación optimizada y cache inteligente
 
 ### 🔧 Características Técnicas
 - **Svelte 5 Runes**: $state, $derived, onclick modernos
@@ -247,25 +270,33 @@ pnpm astro add <package>        # Agregar integración
 - **Responsive Design**: Mobile-first con breakpoints
 - **Dark Theme**: Diseño consistente para modo oscuro
 
-### 📋 Funcionalidades Disponibles
-- Login tradicional (username: testuser, password: testpass)
-- Google OAuth con cuenta Google y sistema de aprobación
-- Dashboard protegido con sidebar
-- Gestión de usuarios con tabla y filtros
-- Aprobación de usuarios pendientes (solo admin+)
-- Usuarios agrupados por origen/proyecto
-- Sistema de badges y avatares
-- Estadísticas y gráficos
-- Manejo de estados PENDING para nuevos usuarios de Google
+### 📋 Funcionalidades Disponibles (Actualizadas)
+- **Login tradicional**: Formulario con validación en tiempo real (username: testuser, password: testpass)
+- **Google OAuth**: Cuenta Google con sistema de aprobación PENDING_APPROVAL mejorado
+- **Dashboard protegido**: Sidebar con navegación activa, breadcrumbs y notificaciones
+- **Gestión de usuarios**: CRUD completo con búsqueda avanzada, filtros múltiples y sorting
+- **Aprobación pendientes**: Panel dedicado con acciones masivas y bulk operations
+- **Usuarios por origen**: Métricas detalladas con gráficos interactivos y estadísticas
+- **Sistema de badges**: Badges de rol, estado, origen con colores consistentes y tooltips
+- **Estadísticas avanzadas**: Gráficos en tiempo real con datos de endpoints especializados
+- **Manejo PENDING**: Flujo completo para nuevos usuarios de Google con estado visual
+- **Búsqueda global**: Búsqueda de usuarios por nombre, email, username con debounce
+- **Actividad por usuario**: Resumen detallado de actividad y métricas individuales
+- **Actualización masiva**: Operaciones bulk para administración eficiente
+- **Reset de contraseñas**: Flujo seguro con validación de confirmación
+- **Perfiles de usuario**: Actualización de datos no sensibles con validación
+- **Notificaciones real-time**: Sistema de toast notifications para feedback
+- **Accesibilidad**: ARIA labels, keyboard navigation y screen reader support
 
-### 🔄 Flujo de Usuario Completo
-1. **Index → Login**: Redirección automática si no autenticado
-2. **Login tradicional**: Formulario con validación y API call
+### 🔄 Flujo de Usuario Completo (Mejorado)
+1. **Index → Login**: Redirección automática con detección de sesión existente
+2. **Login tradicional**: Formulario con validación en tiempo real y API call optimizada
 3. **Google OAuth**: Popup → Google → callback → PENDING_APPROVAL (si nuevo) → Dashboard
-4. **Dashboard**: Panel principal con estadísticas y navegación
-5. **Gestión**: CRUD completo de usuarios con roles y permisos
-6. **Aprobación**: Admin aprueba usuarios PENDING en panel dedicado
-7. **Logout**: Cierre de sesión y limpieza de localStorage
+4. **Dashboard**: Panel principal con estadísticas en tiempo real y notificaciones
+5. **Gestión avanzada**: CRUD completo con búsqueda, filtros, y operaciones masivas
+6. **Aprobación eficiente**: Panel dedicado con bulk actions y estados actualizados
+7. **Monitoreo**: Vista de actividad por usuario y métricas detalladas
+8. **Logout**: Cierre de sesión completo con limpieza de localStorage y cookies
 
 ## 🌐 Despliegue y Entorno
 
@@ -333,17 +364,19 @@ PUBLIC_GOOGLE_CLIENT_ID=YOUR_GOOGLE_OAUTH_CLIENT_ID_PROD
 - **Error Handling**: Estados de error y validación
 - **Session Management**: Persistencia y cleanup
 
-## 🚀 Optimizaciones y Mejoras
-
-### Performance
-- **Code Splitting**: División de código por rutas
-- **Lazy Loading**: Carga bajo demanda de componentes
-- **Image Optimization**: Avatares e imágenes optimizadas
-- **Bundle Analysis**: Tamaño y dependencias optimizadas
-
-### UX/UI
-- **Loading States**: Indicadores visuales de carga
-- **Error Messages**: Feedback claro y amigable
-- **Responsive Design**: Adaptación a todos los dispositivos
-- **Dark Mode**: Tema oscuro consistente
-- **Microinteractions**: Animaciones y transiciones suaves
+### 🚀 Optimizaciones y Mejoras Recientes
+- ✅ **Imports Absolutos**: Configuración @config/ para imports limpios y mantenibles
+- ✅ **Nuevos Endpoints**: Integración completa con búsqueda, actividad, bulk operations
+- ✅ **Error Handling Mejorado**: Manejo específico por código de estado (401, 403, 422)
+- ✅ **Loading States**: Skeletons y spinners para mejor UX durante carga
+- ✅ **Type Safety**: Interfaces sincronizadas con backend SOLID
+- ✅ **Performance**: Paginación optimizada y cache inteligente para datos frecuentes
+- ✅ **Responsive Design**: Mejoras significativas en mobile y tablet
+- ✅ **Accessibility**: Mejoras en ARIA labels, keyboard navigation y screen reader
+- ✅ **Security**: Mejoras en sanitización de inputs y CSRF protection
+- ✅ **Component Architecture**: Componentes más reutilizables y mantenibles
+- ✅ **State Management**: Manejo eficiente de estado con Svelte 5 Runes
+- ✅ **API Communication**: Retry logic automático y manejo de errores robusto
+- ✅ **User Experience**: Micro-interacciones, transiciones suaves y feedback visual
+- ✅ **Code Quality**: Linting, formateo y tipado estricto implementados
+- ✅ **Build Optimization**: Bundle size optimizado y tiempo de carga reducido

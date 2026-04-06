@@ -37,15 +37,13 @@
   const roles = ['SUPERADMIN', 'ADMIN', 'MANAGER', 'USER', 'VIEWER', 'NONE'];
   const statuses = ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'];
 
-  // Get unique origins from users
-  const origins = $derived(() => {
-    const uniqueOrigins = [...new Set(users.map((u) => u.origin || 'unknown').filter(Boolean))];
-    return uniqueOrigins.sort();
-  });
+  // 1. DERIVADOS (Sintaxis simplificada para evitar errores de slice/map)
+  const origins = $derived(
+    [...new Set(users.map((u) => u.origin || 'unknown').filter(Boolean))].sort()
+  );
 
-  // Filter users based on search and filters
-  const filteredUsers = $derived(() => {
-    return users.filter((user) => {
+  const filteredUsers = $derived(
+    users.filter((user) => {
       const matchesSearch =
         !searchQuery ||
         user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -57,54 +55,45 @@
       const matchesOrigin = !selectedOrigin || (user.origin || 'unknown') === selectedOrigin;
 
       return matchesSearch && matchesRole && matchesStatus && matchesOrigin;
-    });
-  });
+    })
+  );
 
-  // Paginate users
-  const paginatedUsers = $derived(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filteredUsers.slice(startIndex, endIndex);
-  });
+  const paginatedUsers = $derived(
+    filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+  );
 
-  const totalPages = $derived(() => Math.ceil(filteredUsers.length / itemsPerPage));
+  const totalPages = $derived(Math.ceil(filteredUsers.length / itemsPerPage));
 
-  function handleRoleChange(userId: number, newRole: string) {
-    if (onUserUpdate) {
-      onUserUpdate(userId, 'role', newRole);
+  // 2. MANEJADORES
+  function handleRoleChange(userId: number, newRole: string): void {
+    onUserUpdate?.(userId, 'role', newRole);
+  }
+
+  function handleStatusChange(userId: number, newStatus: string): void {
+    onUserUpdate?.(userId, 'status', newStatus);
+  }
+
+  function handleLockToggle(userId: number, isLocked: boolean): void {
+    onUserLock?.(userId, isLocked);
+  }
+
+  function handleDelete(userId: number): void {
+    if (confirm('¿Estás seguro de eliminar este usuario?')) {
+      onUserDelete?.(userId);
     }
   }
 
-  function handleStatusChange(userId: number, newStatus: string) {
-    if (onUserUpdate) {
-      onUserUpdate(userId, 'status', newStatus);
-    }
-  }
-
-  function handleLockToggle(userId: number, isLocked: boolean) {
-    if (onUserLock) {
-      onUserLock(userId, isLocked);
-    }
-  }
-
-  function handleDelete(userId: number) {
-    if (onUserDelete) {
-      onUserDelete(userId);
-    }
-  }
-
+  // 3. UTILIDADES DE FECHA
   function formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
+    return new Date(dateString).toLocaleDateString('es-ES', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
     });
   }
 
-  function getRelativeTime(dateString: string): string {
+  function getRelativeTime(dateString: string | undefined): string {
     if (!dateString) return 'Nunca';
-
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -119,18 +108,7 @@
   }
 
   function exportToCSV() {
-    const headers = [
-      'ID',
-      'Username',
-      'Email',
-      'Full Name',
-      'Role',
-      'Status',
-      'Origin',
-      'Last Login',
-      'Created At',
-      'Locked',
-    ];
+    const headers = ['ID', 'Username', 'Email', 'Full Name', 'Role', 'Status', 'Origin', 'Last Login', 'Created At', 'Locked'];
     const csvContent = [
       headers.join(','),
       ...filteredUsers.map((user) =>
@@ -166,8 +144,9 @@
   <div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-4">
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
       <div>
-        <label class="block text-sm font-medium text-[#9CA3AF] mb-1">Buscar</label>
+        <label for="search" class="block text-sm font-medium text-[#9CA3AF] mb-1">Buscar</label>
         <input
+          id="search"
           type="text"
           placeholder="Nombre, email, username..."
           bind:value={searchQuery}
@@ -176,8 +155,9 @@
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-[#9CA3AF] mb-1">Rol</label>
+        <label for="role-filter" class="block text-sm font-medium text-[#9CA3AF] mb-1">Rol</label>
         <select
+          id="role-filter"
           bind:value={selectedRole}
           class="w-full px-3 py-2 bg-[#2D3148] border border-[#374151] rounded-lg text-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
         >
@@ -189,8 +169,9 @@
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-[#9CA3AF] mb-1">Estado</label>
+        <label for="status-filter" class="block text-sm font-medium text-[#9CA3AF] mb-1">Estado</label>
         <select
+          id="status-filter"
           bind:value={selectedStatus}
           class="w-full px-3 py-2 bg-[#2D3148] border border-[#374151] rounded-lg text-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
         >
@@ -202,8 +183,9 @@
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-[#9CA3AF] mb-1">Origen</label>
+        <label for="origin-filter" class="block text-sm font-medium text-[#9CA3AF] mb-1">Origen</label>
         <select
+          id="origin-filter"
           bind:value={selectedOrigin}
           class="w-full px-3 py-2 bg-[#2D3148] border border-[#374151] rounded-lg text-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
         >
@@ -227,7 +209,6 @@
 
   <!-- Table -->
   <div class="bg-[#1E2130] border border-[#2D3148] rounded-lg overflow-hidden">
-    <!-- Desktop Table View -->
     <div class="hidden lg:block overflow-x-auto">
       <table class="w-full">
         <thead>
@@ -283,56 +264,24 @@
               </td>
               <td class="py-3 px-4">
                 <div class="flex items-center space-x-2">
-                  <a
-                    href={`/dashboard/users/${user.id}`}
-                    class="text-[#6366F1] hover:text-[#5558E3]"
-                    title="Ver detalle"
-                  >
+                  <a href={`/dashboard/users/${user.id}`} class="text-[#6366F1] hover:text-[#5558E3]" title="Ver detalle">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                      />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
                   </a>
-
                   <button
                     onclick={() => handleLockToggle(user.id, !user.is_locked)}
-                    class={user.is_locked
-                      ? 'text-[#10B981] hover:text-[#059669]'
-                      : 'text-[#F59E0B] hover:text-[#D97706]'}
+                    class={user.is_locked ? 'text-[#10B981] hover:text-[#059669]' : 'text-[#F59E0B] hover:text-[#D97706]'}
                     title={user.is_locked ? 'Desbloquear' : 'Bloquear'}
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                      />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
                   </button>
-
-                  <button
-                    onclick={() => handleDelete(user.id)}
-                    class="text-[#EF4444] hover:text-[#DC2626]"
-                    title="Eliminar"
-                  >
+                  <button onclick={() => handleDelete(user.id)} class="text-[#EF4444] hover:text-[#DC2626]" title="Eliminar">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
                 </div>
@@ -357,11 +306,7 @@
           >
             Anterior
           </button>
-
-          <span class="text-sm text-[#9CA3AF]">
-            Página {currentPage} de {totalPages}
-          </span>
-
+          <span class="text-sm text-[#9CA3AF]">Página {currentPage} de {totalPages}</span>
           <button
             onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
             disabled={currentPage === totalPages}
