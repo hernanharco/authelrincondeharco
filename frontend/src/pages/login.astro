@@ -9,33 +9,40 @@ import PendingApproval from "@components/auth/PendingApproval.svelte";
 import { apiUrl, ENDPOINTS } from "@config/api.config";
 import { canAccessDashboard } from "@utils/auth.roles";
 
-// Verificar sesión activa
-if (Astro.cookies.has("session")) {
-  const token = Astro.cookies.get("session")?.value;
-  if (token) {
-    const check = await fetch(apiUrl(ENDPOINTS.users.me), {
-      headers: { Authorization: `Bearer ${token}` },
-    }).catch(() => null);
-
-    if (check && check.ok) {
-      const user = await check.json();
-
-      if (canAccessDashboard(user.role || '')) {
-        return Astro.redirect("/dashboard");
-      } else {
-        const currentStatus = Astro.url.searchParams.get("status");
-        if (currentStatus !== "pending") {
-          return Astro.redirect("/login?status=pending");
-        }
-      }
-    } else {
-      Astro.cookies.delete("session", { path: "/" });
-    }
-  }
-}
-
+// 1. CAPTURA DE PARÁMETROS
+const redirectParam = Astro.url.searchParams.get("redirect") ?? "/dashboard";
 const status = Astro.url.searchParams.get("status");
 const isPending = status === "pending";
+
+// 2. GUARDIA DE ENTRADA mejorada
+const sessionCookie = Astro.cookies.get("access_token");
+
+if (sessionCookie?.value) {
+  try {
+    const check = await fetch(apiUrl(ENDPOINTS.users.me), {
+      headers: { Authorization: `Bearer ${sessionCookie.value}` },
+    });
+
+    if (check.ok) {
+      const user = await check.json();
+      if (canAccessDashboard(user.role)) {
+        // Normalizamos la redirección: si no es URL completa y no empieza con /, se lo ponemos.
+        const safeRedirect = redirectParam.startsWith('http') 
+          ? redirectParam 
+          : (redirectParam.startsWith('/') ? redirectParam : `/${redirectParam}`);
+          
+        return Astro.redirect(safeRedirect);
+      } else if (!isPending) {
+        return Astro.redirect("/login?status=pending");
+      }
+    } else {
+      // Importante: El path "/" asegura que se borre en todo el sitio
+      Astro.cookies.delete("access_token", { path: "/" });
+    }
+  } catch (e) {
+    console.error("Error verificando sesión:", e);
+  }
+}
 ---
 
 <Layout title={isPending ? "Solicitud Pendiente - AuthCore" : "Iniciar Sesión - AuthCore"}>
@@ -59,7 +66,8 @@ const isPending = status === "pending";
             </div>
 
             <div class="space-y-6">
-              <LoginForm client:load />
+              <!-- Pasamos redirectParam a LoginForm para el login tradicional -->
+              <LoginForm client:load {redirectParam} />
 
               <div class="relative my-6">
                 <div class="absolute inset-0 flex items-center">
@@ -70,7 +78,8 @@ const isPending = status === "pending";
                 </div>
               </div>
 
-              <GoogleButton client:load />
+              <!-- Pasamos redirectParam a GoogleButton para el flujo OAuth inteligente -->
+              <GoogleButton client:load {redirectParam} />
             </div>
 
             <div class="mt-8 text-center">
@@ -83,7 +92,7 @@ const isPending = status === "pending";
       </div>
 
       <p class="mt-6 text-center text-xs text-[#4B5563]">
-        &copy; 2026 AuthCore — Sistema Seguro y Modular del elrincondeharco.com.
+        &copy; 2026 AuthCore — Sistema Seguro y Modular de elrincondeharco.com.
       </p>
     </div>
   </main>

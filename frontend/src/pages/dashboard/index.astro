@@ -9,7 +9,7 @@ import { getRelativeTime } from '../../utils/date';
 import { apiUrl, ENDPOINTS } from '../../config/api.config';
 
 // El middleware ya garantiza que hay sesión válida si llegamos aquí
-const token = Astro.cookies.get('session')!.value;
+const token = Astro.cookies.get('access_token')!.value;
 
 let stats = null;
 let recentUsers = [];

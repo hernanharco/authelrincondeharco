@@ -1,5 +1,6 @@
 """
 Servicio de Usuarios - Principio de Responsabilidad Única
+Refactorizado para seguir SRP usando servicios especializados.
 """
 
 from typing import List, Optional, Dict, Any
@@ -7,42 +8,35 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.types.enums import UserRole, UserStatus
-from app.domain.user_domain import UserDomain
 from app.core.security import get_password_hash
 from app.interfaces.user.IUserService import IUserService
 from app.interfaces.user.IUserRepository import IUserRepository
+from app.services.user.UserValidationService import UserValidationService
+from app.services.user.UserQueryService import UserQueryService
+from app.services.user.UserUpdateService import UserUpdateService
 
 
 class UserService(IUserService):
     """
-    Implementación concreta del servicio de usuarios.
-    Maneja la lógica de negocio de usuarios con validaciones de dominio.
+    Servicio principal de usuarios que coordina servicios especializados.
+    Aplica SRP delegando responsabilidades específicas a servicios dedicados.
+    Patrón Facade: proporciona una interfaz unificada para el subsistema de usuarios.
     """
 
     def __init__(self, db: Session, user_repository: IUserRepository):
         self.db = db
         self.user_repository = user_repository
 
+        # Inicializar servicios especializados
+        self.validation_service = UserValidationService()
+        self.query_service = UserQueryService(db, user_repository)
+        self.update_service = UserUpdateService(db, user_repository)
+
     async def get_user_by_id(self, user_id: int, current_user: User) -> Optional[User]:
         """
         Obtiene un usuario por ID con validación de permisos.
         """
-        domain = UserDomain(current_user)
-
-        # Verificar permisos
-        if not domain.is_manager_or_above() and current_user.id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes permiso para ver este usuario",
-            )
-
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado"
-            )
-
-        return user
+        return await self.query_service.get_user_by_id(user_id, current_user)
 
     async def get_users(
         self,
@@ -55,31 +49,16 @@ class UserService(IUserService):
         """
         Lista usuarios con filtros y paginación.
         """
-        domain = UserDomain(current_user) if current_user else None
-
-        # Verificar permisos
-        if not domain or not domain.is_manager_or_above():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes permiso para listar usuarios",
-            )
-
-        return await self.user_repository.get_all(
-            skip=skip, limit=limit, search=search, role=role
+        return await self.query_service.get_users(
+            skip, limit, search, role, current_user
         )
 
     async def create_user(self, user_data: Dict[str, Any], current_user: User) -> User:
         """
         Crea un nuevo usuario con validaciones.
         """
-        domain = UserDomain(current_user)
-
-        # Verificar permisos
-        if not domain.is_admin():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes permiso para crear usuarios",
-            )
+        # Validar permisos
+        UserValidationService.validate_permission_to_create(current_user)
 
         # Verificar que no exista el username
         if await self.user_repository.exists_by_username(user_data.get("username")):
@@ -95,25 +74,14 @@ class UserService(IUserService):
                 detail="El email ya está registrado",
             )
 
-        # Validar rol
-        if "role" in user_data:
-            if not domain.can_assign_role(user_data["role"]):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="No tienes permiso para asignar ese rol",
-                )
-        else:
-            user_data["role"] = UserRole.USER
+        # Validar y preparar datos
+        user_data = UserValidationService.validate_user_data_for_creation(
+            user_data, current_user
+        )
 
         # Hashear contraseña
         if "password" in user_data:
             user_data["password_hash"] = get_password_hash(user_data.pop("password"))
-
-        # Establecer valores por defecto
-        user_data.setdefault("status", UserStatus.ACTIVE)
-        user_data.setdefault("is_active", True)
-        user_data.setdefault("is_locked", False)
-        user_data.setdefault("failed_login_attempts", 0)
 
         return await self.user_repository.create(user_data)
 
@@ -123,60 +91,16 @@ class UserService(IUserService):
         """
         Actualiza un usuario existente con validaciones.
         """
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado"
-            )
-
-        domain = UserDomain(current_user)
-
-        # Verificar permisos
-        if not domain.is_admin() and current_user.id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes permiso para actualizar este usuario",
-            )
-
-        # Sin rol privilegiado no puede cambiar campos sensibles
-        if not domain.is_admin():
-            for field in ["role", "status", "is_active", "is_locked"]:
-                update_data.pop(field, None)
-
-        # Validar rol si se está cambiando
-        if "role" in update_data:
-            if not domain.can_assign_role(update_data["role"]):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="No tienes permiso para asignar ese rol",
-                )
-
-        # Hashear contraseña si se está actualizando
-        if "password" in update_data:
-            update_data["password_hash"] = get_password_hash(
-                update_data.pop("password")
-            )
-
-        return await self.user_repository.update(user_id, update_data)
+        return await self.update_service.update_user(user_id, update_data, current_user)
 
     async def delete_user(self, user_id: int, current_user: User) -> bool:
         """
         Desactiva un usuario (borrado lógico).
         """
         user = await self.user_repository.get_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado"
-            )
+        UserValidationService.validate_user_exists(user)
 
-        domain = UserDomain(current_user)
-
-        # Verificar permisos
-        if not domain.can_delete(user):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes permiso para eliminar este usuario",
-            )
+        UserValidationService.validate_permission_to_delete(current_user, user)
 
         return await self.user_repository.delete(user_id)
 
@@ -186,62 +110,21 @@ class UserService(IUserService):
         """
         Actualiza el rol de un usuario con validaciones.
         """
-        if current_user.id == user_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No puedes cambiar tu propio rol",
-            )
-
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado"
-            )
-
-        domain = UserDomain(current_user)
-
-        if not domain.can_assign_role(new_role):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes permiso para asignar ese rol",
-            )
-
-        # Actualizar rol y estado
-        update_data = {"role": new_role}
-
-        # Si se asigna un rol válido, activar la cuenta automáticamente
-        if new_role != UserRole.NONE:
-            update_data.update({"status": UserStatus.ACTIVE, "is_active": True})
-
-        return await self.user_repository.update(user_id, update_data)
+        return await self.update_service.update_user_role(
+            user_id, new_role, current_user
+        )
 
     async def get_pending_users(self, current_user: User) -> List[User]:
         """
         Obtiene usuarios pendientes de aprobación.
         """
-        domain = UserDomain(current_user)
-
-        if not domain.is_superadmin():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Solo los superadministradores pueden ver usuarios pendientes",
-            )
-
-        return await self.user_repository.get_pending_users()
+        return await self.query_service.get_pending_users(current_user)
 
     async def get_stats(self, current_user: User = None) -> Dict[str, Any]:
         """
         Obtiene estadísticas generales de usuarios.
         """
-        if current_user:
-            domain = UserDomain(current_user)
-            if not domain.is_manager_or_above():
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="No tienes permiso para ver estadísticas",
-                )
-
-        return await self.user_repository.get_stats()
+        return await self.query_service.get_stats(current_user)
 
     async def get_users_by_origin(
         self, current_user: User = None
@@ -249,15 +132,7 @@ class UserService(IUserService):
         """
         Obtiene usuarios agrupados por origen.
         """
-        if current_user:
-            domain = UserDomain(current_user)
-            if not domain.is_manager_or_above():
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="No tienes permiso para ver usuarios por origen",
-                )
-
-        return await self.user_repository.get_users_by_origin()
+        return await self.query_service.get_users_by_origin(current_user)
 
     async def update_user_status(
         self, user_id: int, new_status: UserStatus, current_user: User
@@ -265,20 +140,9 @@ class UserService(IUserService):
         """
         Actualiza el estado de un usuario.
         """
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado"
-            )
-
-        domain = UserDomain(current_user)
-        if not domain.is_admin():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes permiso para cambiar el estado de usuarios",
-            )
-
-        return await self.user_repository.update(user_id, {"status": new_status})
+        return await self.update_service.update_user_status(
+            user_id, new_status, current_user
+        )
 
     async def update_user_lock(
         self, user_id: int, is_locked: bool, current_user: User
@@ -286,20 +150,9 @@ class UserService(IUserService):
         """
         Bloquea o desbloquea un usuario.
         """
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado"
-            )
-
-        domain = UserDomain(current_user)
-        if not domain.is_admin():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes permiso para bloquear usuarios",
-            )
-
-        return await self.user_repository.update(user_id, {"is_locked": is_locked})
+        return await self.update_service.update_user_lock(
+            user_id, is_locked, current_user
+        )
 
     async def update_user_notes(
         self, user_id: int, notes: str, current_user: User
@@ -307,20 +160,7 @@ class UserService(IUserService):
         """
         Actualiza las notas de un usuario.
         """
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado"
-            )
-
-        domain = UserDomain(current_user)
-        if not domain.is_admin():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes permiso para editar notas de usuarios",
-            )
-
-        return await self.user_repository.update(user_id, {"notes": notes})
+        return await self.update_service.update_user_notes(user_id, notes, current_user)
 
     # Métodos de compatibilidad para los endpoints existentes
     async def get_all(
@@ -362,3 +202,59 @@ class UserService(IUserService):
     async def get_pending(self) -> List[User]:
         """Método de compatibilidad para get_pending_users."""
         return await self.user_repository.get_pending_users()
+
+    # --- Más métodos de compatibilidad ---
+
+    async def update_status(
+        self, user_id: int, new_status: UserStatus, current_user: User
+    ) -> User:
+        """Método de compatibilidad para update_user_status."""
+        return await self.update_user_status(user_id, new_status, current_user)
+
+    async def update_lock(
+        self, user_id: int, is_locked: bool, current_user: User
+    ) -> User:
+        """Método de compatibilidad para update_user_lock."""
+        return await self.update_user_lock(user_id, is_locked, current_user)
+
+    async def update_notes(self, user_id: int, notes: str, current_user: User) -> User:
+        """Método de compatibilidad para update_user_notes."""
+        return await self.update_user_notes(user_id, notes, current_user)
+
+    # --- Métodos adicionales que delegan a servicios especializados ---
+
+    async def search_users(
+        self, query: str, current_user: User, limit: int = 50
+    ) -> List[User]:
+        """Busca usuarios por texto."""
+        return await self.query_service.search_users(query, current_user, limit)
+
+    async def get_user_activity_summary(
+        self, user_id: int, current_user: User
+    ) -> Dict[str, Any]:
+        """Obtiene resumen de actividad de un usuario."""
+        return await self.query_service.get_user_activity_summary(user_id, current_user)
+
+    async def update_user_profile(
+        self, user_id: int, profile_data: Dict[str, Any], current_user: User
+    ) -> User:
+        """Actualiza datos del perfil de un usuario."""
+        return await self.update_service.update_user_profile(
+            user_id, profile_data, current_user
+        )
+
+    async def reset_user_password(
+        self, user_id: int, new_password: str, current_user: User
+    ) -> User:
+        """Resetea la contraseña de un usuario."""
+        return await self.update_service.reset_user_password(
+            user_id, new_password, current_user
+        )
+
+    async def bulk_update_users(
+        self, user_ids: list[int], update_data: Dict[str, Any], current_user: User
+    ) -> list[User]:
+        """Actualiza múltiples usuarios en lote."""
+        return await self.update_service.bulk_update_users(
+            user_ids, update_data, current_user
+        )

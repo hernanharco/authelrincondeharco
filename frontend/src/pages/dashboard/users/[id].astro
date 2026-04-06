@@ -1,13 +1,13 @@
 ---
 export const prerender = false;
-import DashboardLayout from '../../../layouts/DashboardLayout.astro';
-import RoleBadge from '../../../components/dashboard/RoleBadge.svelte';
-import StatusBadge from '../../../components/dashboard/StatusBadge.svelte';
-import OriginBadge from '../../../components/dashboard/OriginBadge.svelte';
-import UserAvatar from '../../../components/dashboard/UserAvatar.svelte';
-import { apiUrl, ENDPOINTS } from '../../../config/api.config';
+import DashboardLayout from '@layouts/DashboardLayout.astro';
+import RoleBadge from '@components/dashboard/RoleBadge.svelte';
+import StatusBadge from '@components/dashboard/StatusBadge.svelte';
+import OriginBadge from '@components/dashboard/OriginBadge.svelte';
+import UserAvatar from '@components/dashboard/UserAvatar.svelte';
+import { apiUrl, ENDPOINTS } from '@config/api.config';
 
-const token = Astro.cookies.get('session')?.value;
+const token = Astro.cookies.get('access_token')?.value;
 if (!token) return Astro.redirect('/login');
 
 const { id } = Astro.params;
@@ -39,7 +39,7 @@ function formatDate(d: string) {
 ---
 
 <DashboardLayout title={`Usuario - ${user.full_name || user.username}`}>
-  <div class="max-w-4xl mx-auto space-y-6">
+  <div class="max-w-4xl mx-auto space-y-6" id="user-management-container" data-token={token}>
     <!-- Header -->
     <div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
       <div class="flex items-center justify-between">
@@ -204,22 +204,25 @@ function formatDate(d: string) {
     </div>
   </div>
 
-  <script define:vars={{ userId: user.id, userIsLocked: user.is_locked }}>
-    // Importamos la configuración centralizada
-    import { BACKEND_URL, ENDPOINTS } from '../../../config/api.config';
+  <script>
+  import { BACKEND_URL, ENDPOINTS } from '@config/api.config';
 
-    async function updateUser(endpoint, body) {
-      const token = document.cookie
-        .split('; ')
-        .find((row) => row.startsWith('session='))
-        ?.split('=')[1];
-      if (!token) return (window.location.href = '/login');
+  // 1. Tipamos la función para eliminar los errores 7006
+  async function updateUser(endpoint: string, body: Record<string, any>) {
+    const container = document.getElementById('user-management-container');
+    const token = container?.dataset.token;
 
+    if (!token) {
+      console.error('❌ Token no encontrado');
+      return (window.location.href = '/login');
+    }
+
+    try {
       const res = await fetch(`${BACKEND_URL}${endpoint}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(body),
       });
@@ -230,21 +233,51 @@ function formatDate(d: string) {
         const err = await res.json();
         alert(err.detail || 'Error en la operación');
       }
+    } catch (error) {
+      console.error('❌ Error de red:', error);
+    }
+  }
+
+  // 2. Gestión segura del userId y eventos
+  document.addEventListener('DOMContentLoaded', () => {
+    // Obtenemos el ID de la URL de forma segura
+    const pathParts = window.location.pathname.split('/');
+    const userId = pathParts.pop(); 
+
+    // Verificamos que el userId existe antes de continuar (Solución error 2345)
+    if (!userId) {
+      console.error('❌ No se pudo determinar el ID del usuario');
+      return;
     }
 
-    document.getElementById('btn-role').addEventListener('click', () => {
-      const role = document.getElementById('role-select').value;
-      updateUser(ENDPOINTS.users.role(userId), { role });
+    // --- Eventos ---
+
+    document.getElementById('btn-role')?.addEventListener('click', () => {
+      const roleSelect = document.getElementById('role-select') as HTMLSelectElement;
+      const role = roleSelect?.value;
+      if (role) {
+        updateUser(ENDPOINTS.users.role(userId), { role });
+      }
     });
 
-    document.getElementById('btn-status').addEventListener('click', () => {
-      const status = document.getElementById('status-select').value;
-      updateUser(ENDPOINTS.users.status(userId), { status });
+    document.getElementById('btn-status')?.addEventListener('click', () => {
+      const statusSelect = document.getElementById('status-select') as HTMLSelectElement;
+      const status = statusSelect?.value;
+      if (status) {
+        // Aquí incluimos la lógica de is_active que querías
+        const payload = { 
+          status, 
+          is_active: status === 'ACTIVE' 
+        };
+        updateUser(ENDPOINTS.users.status(userId), payload);
+      }
     });
 
-    let isLocked = userIsLocked;
-    document.getElementById('btn-lock').addEventListener('click', () => {
-      updateUser(ENDPOINTS.users.lock(userId), { is_locked: !isLocked });
+    document.getElementById('btn-lock')?.addEventListener('click', (e) => {
+      const btn = e.target as HTMLButtonElement;
+      const currentlyLocked = btn.innerText.includes('Desbloquear');
+      updateUser(ENDPOINTS.users.lock(userId), { is_locked: !currentlyLocked });
     });
-  </script>
+  });
+</script>
 </DashboardLayout>

@@ -28,19 +28,49 @@ const formattedStats = Array.isArray(originsData)
 ---
 
 <DashboardLayout title="Orígenes de Usuarios">
-  <div class="p-6">
-    <h1 class="text-2xl font-bold mb-6 text-gray-800">Análisis de Origen</h1>
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="space-y-6">
+      <!-- Header -->
+      <div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+        <h2 class="text-xl font-semibold text-[#F9FAFB]">Análisis de Orígenes</h2>
+        <p class="text-[#9CA3AF] mt-1">Distribución de usuarios por origen de registro</p>
+      </div>
 
-    {error && <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 text-red-700">{error}</div>}
+      <!-- Contenido principal -->
+      <div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+        {
+          error && (
+            <div class="bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg p-4 mb-6">
+              <p class="text-[#EF4444]">{error}</p>
+            </div>
+          )
+        }
 
-    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-      {
-        formattedStats.length > 0 ? (
-          <OriginChart client:load data={formattedStats} />
-        ) : (
-          <p class="text-gray-400 text-center py-10">No hay datos disponibles para mostrar.</p>
-        )
-      }
+        {
+          formattedStats.length > 0 ? (
+            <OriginChart client:load data={formattedStats} />
+          ) : (
+            <div class="text-center py-10">
+              <div class="w-16 h-16 bg-[#6366F1]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg
+                  class="w-8 h-8 text-[#6366F1]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                  />
+                </svg>
+              </div>
+              <p class="text-[#9CA3AF]">No hay datos disponibles para mostrar.</p>
+            </div>
+          )
+        }
+      </div>
     </div>
-  </div>
+  </main>
 </DashboardLayout>

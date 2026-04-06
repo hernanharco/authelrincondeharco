@@ -15,4 +15,4 @@ class UserStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"          # Antes era "active"
     INACTIVE = "INACTIVE"
     SUSPENDED = "SUSPENDED"
-    PENDING = "PENDING"
+    PENDING = "PENDING"    

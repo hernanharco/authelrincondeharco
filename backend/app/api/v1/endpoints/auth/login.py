@@ -10,7 +10,6 @@ from app.api.v1.dependencies import get_auth_service
 
 router = APIRouter()
 
-
 @router.post("/login", response_model=UserLoginResponse)
 async def login(
     credentials: LoginRequest, auth_service: IAuthService = Depends(get_auth_service)
