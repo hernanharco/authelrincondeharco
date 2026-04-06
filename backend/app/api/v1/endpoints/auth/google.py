@@ -71,11 +71,13 @@ async def google_callback(
             value=internal_token,
             httponly=True,
             max_age=expires_in,
-            samesite="lax",
-            # En desarrollo (localhost/HTTP) secure debe ser False. 
-            # En producción (HTTPS) debe ser True.
-            secure=False if "localhost" in settings.backend_url else True,
-            path="/"
+            # CAMBIO CLAVE PARA PRODUCCIÓN:
+            samesite="none" if is_production else "lax",
+            # CAMBIO CLAVE PARA PRODUCCIÓN:
+            secure=True if is_production else False,
+            path="/",
+            # Si quieres que la cookie sea más estable entre subdominios:
+            # domain=".tudominio.com" 
         )
         return response
 
