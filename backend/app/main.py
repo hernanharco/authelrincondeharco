@@ -13,12 +13,15 @@ from app.api.route import api_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Starting FastAPI app in development mode")
+    mode = "production" if settings.is_production else "development"
+    
+    print(f"🚀 Starting FastAPI app in {mode} mode")
+
     local_tz = ZoneInfo("Europe/Madrid")
     local_time = datetime.now(local_tz).strftime("%Y-%m-%d %H:%M:%S")
     print(f"🌍 Timezone: {local_tz} | 🕒 Local Time: {local_time}")
 
-    print("--- Verificando conexión a Postgresql (development) ---")
+    print(f"--- Verificando conexión a Postgresql ({mode}) ---")
     try:
         # Para SQLAlchemy síncrono dentro de async context
         def create_tables():
