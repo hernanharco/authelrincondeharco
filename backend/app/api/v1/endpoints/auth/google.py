@@ -69,18 +69,26 @@ async def google_callback(
         response = RedirectResponse(url=final_url)
 
         # 4. Configuración inteligente de la Cookie
-        # is_production devuelve True si ENVIRONMENT="production" en el .env
         is_prod = settings.is_production
+        
+        # Extraemos el dominio base para que la cookie sea compartida
+        # Ejemplo: de 'auth.elrincondeharco.com' sacamos '.elrincondeharco.com'
+        cookie_domain = None
+        if is_prod:
+            # Puedes ponerlo manual o extraerlo de settings.frontend_origin
+            # Importante: El punto inicial permite que funcione en TODOS los subdominios
+            cookie_domain = ".elrincondeharco.com" 
 
         response.set_cookie(
             key="access_token",
             value=internal_token,
             httponly=True,
-            max_age=expires_in * 60, # Asegúrate de que sea en segundos
+            max_age=expires_in * 60,
             path="/",
-            # Crucial para Vercel (Frontend) + VPS (Backend):
+            # Crucial: 'none' requiere 'secure=True'
             samesite="none" if is_prod else "lax",
-            secure=True if is_prod else False,
+            secure=is_prod, 
+            domain=cookie_domain, # <--- ESTO es lo que falta
         )
         
         logging.info(f"✅ Login exitoso para el usuario: {user.email}")

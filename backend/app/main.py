@@ -5,6 +5,9 @@ import sys
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+# --- NUEVA IMPORTACIÓN ---
+from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
+
 from app.core.config import settings
 from app.db.session import engine
 from app.models.base import Base
@@ -23,31 +26,21 @@ async def lifespan(app: FastAPI):
 
     print(f"--- Verificando conexión a Postgresql ({mode}) ---")
     try:
-        # Para SQLAlchemy síncrono dentro de async context
         def create_tables():
             from sqlalchemy import inspect
-
-            # Conexión directa para inspección
             with engine.connect() as conn:
                 inspector = inspect(conn)
                 existing_tables = inspector.get_table_names()
                 metadata_tables = Base.metadata.tables.keys()
-
                 new_tables = [t for t in metadata_tables if t not in existing_tables]
-
-                # Crear tablas
                 Base.metadata.create_all(engine)
 
                 if new_tables:
-                    print(
-                        f"✅ Nuevas tablas creadas/detectadas: {', '.join(new_tables)}"
-                    )
+                    print(f"✅ Nuevas tablas creadas/detectadas: {', '.join(new_tables)}")
                 else:
                     print("info: Schema sincronizado (sin cambios pendientes)")
 
-        # Ejecutar la función síncrona
         import asyncio
-
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, create_tables)
 
@@ -55,7 +48,6 @@ async def lifespan(app: FastAPI):
         print(f"❌ Error en DB: {str(e)}", file=sys.stderr)
         raise
     yield
-    # Cierre síncrono
     engine.dispose()
 
 
@@ -64,19 +56,24 @@ app = FastAPI(
     description="Backend de autenticación con FastAPI y Postgres de Servidor",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",  # Swagger UI
-    redoc_url="/redoc",  # ReDoc (opcional)
+    docs_url="/docs",
+    redoc_url="/redoc",
     openapi_url="/openapi.json",
 )
 
+# 1. MIDDLEWARE DE PROXY (CRUCIAL PARA CLOUDFLARE/DOKPLOY)
+# Esto hace que FastAPI confíe en las cabeceras X-Forwarded-Proto
+# para que 'secure=True' en las cookies no falle.
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
+# 2. RUTAS
 app.include_router(api_router, prefix="/api/v1")
 
-# CORS middleware
+# 3. CORS MIDDLEWARE
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True, # Indispensable para Auth
+    allow_credentials=True, 
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -89,5 +86,4 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    # Puedes mejorar esto más adelante verificando realmente la conexión
     return {"status": "healthy", "database": "connected (verificado en startup)"}
