@@ -9,20 +9,25 @@ export const ENDPOINTS = {
   auth: {
     login: '/api/v1/auth/login',
     google: '/api/v1/auth/google',
-    forgotPassword: '/api/v1/auth/forgot-password',
-    resetPassword: '/api/v1/auth/reset-password',
+    logout: '/api/v1/auth/logout',
   },
   users: {
     me: '/api/v1/users/me',
     list: '/api/v1/users/',
+    search: '/api/v1/users/search',
     stats: '/api/v1/users/stats',
     pending: '/api/v1/users/pending',
+    byOrigin: '/api/v1/users/by-origin',
     byId: (id: string) => `/api/v1/users/${id}`,
     role: (id: string) => `/api/v1/users/${id}/role`,
     status: (id: string) => `/api/v1/users/${id}/status`,
     lock: (id: string) => `/api/v1/users/${id}/lock`,
+    activity: (id: string) => `/api/v1/users/${id}/activity`,
+    profile: (id: string) => `/api/v1/users/${id}/profile`,
+    resetPassword: (id: string) => `/api/v1/users/${id}/reset-password`,
+    notes: (id: string) => `/api/v1/users/${id}/notes`,
+    bulkUpdate: '/api/v1/users/bulk-update',
   },
-  origins: '/api/v1/users/by-origin',
 };
 
 export const apiUrl = (path: string) => `${BACKEND_URL}${path}`;

@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     Maneja la construcción de DB URL, Google OAuth y parseo robusto de CORS.
     """
 
+    # --- Dominio de la aplicación ---
+    APP_DOMAIN: str = Field("", alias="APP_DOMAIN")
+
     # --- Logging ---
     log_level: str = Field("INFO", alias="LOG_LEVEL")
 

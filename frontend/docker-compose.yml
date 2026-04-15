@@ -1,27 +1,50 @@
 services:
+  gateway-frd:
+    image: nginx:alpine
+    container_name: authcore-frontend-gateway
+    restart: unless-stopped
+    ports:
+      - "81:80"
+      - "444:443"
+    volumes:
+      # Usamos el sistema de templates oficial de Nginx Docker
+      - ./nginx/conf.d/default.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx/certs:/etc/ssl/certs:ro
+    environment:
+      # Pasamos la variable del host al contenedor (importante para envsubst)
+      - APP_DOMAIN_FRD=${APP_DOMAIN_FRD}
+    depends_on:
+      - frd-authcore
+    networks:
+      - frd-network
+      - harco_network
+
   frd-authcore:
     build:
       context: .
       dockerfile: Dockerfile
-      # Pasamos la URL como argumento para que Astro la "queme" en el build del cliente
       args:
         - PUBLIC_BACKEND_URL=${PUBLIC_BACKEND_URL}
     container_name: authcore-frontend
     restart: unless-stopped
-    ports:
-      - "4321:4321"
-    
-    # IMPORTANTE: En Linux, esto permite que el contenedor resuelva 'localhost' 
-    # del host si usas esa URL para el backend
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      - "localhost:host-gateway" # Obliga al contenedor a ver el puerto 8000 de tu PC
-    
-    # Para el modo SSR (Server Side Rendering), Astro usará esta variable
+    # Ya no exponemos el 4321 al host, solo vía el gateway 443
     environment:
       - PUBLIC_BACKEND_URL=${PUBLIC_BACKEND_URL}
-    
-    env_file:
-      - .env
+      - HOST=0.0.0.0
+      - PORT=4321
+      # Crítico: le dice al adaptador @astrojs/node que confíe en los headers
+      # X-Forwarded-Proto y X-Forwarded-Host que envía Nginx.
+      # Sin esto, url.origin en middleware devuelve la IP interna del contenedor.
+      - ASTRO_NODE_TRUST_FORWARDED_HEADERS=true
+    env_file:      
+      - .env.production
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - frd-network      
 
-# Al no declarar 'networks', Docker crea una red bridge por defecto para este proyecto.
+networks:
+  frd-network:
+    driver: bridge
+  harco_network:
+    external: true

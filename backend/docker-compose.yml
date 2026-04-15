@@ -1,19 +1,44 @@
 services:
+  gateway:
+    image: nginx:alpine
+    container_name: authcore-gateway
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Usamos la carpeta de templates para que envsubst haga su magia
+      - ./nginx/conf.d/default.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx/certs:/etc/ssl/certs:ro
+    environment:
+      # Pasamos la variable al contenedor para que Nginx no explote
+      - APP_DOMAIN=${APP_DOMAIN:-apilcl-auth.elrincondeharco.com}
+    depends_on:
+      - bkd-authcore
+    networks:
+      - auth-network
+      - harco_network # Conexión para que el gateway sepa llegar al bkd si fuera necesario
+
   bkd-authcore:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: authcore-backend
     restart: always
-    ports:
-      - "8000:8000"
-    
-    # Crucial para resolver la DB si está en localhost del host (Linux)
+    # No mapeamos el puerto 8000 al host por seguridad (SRP y aislamiento)
+    # Solo el gateway (puerto 443) expone el servicio al exterior.
+    env_file:
+      - .env.production
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    
-    env_file:
-      - .env
+    networks:
+      - auth-network
+      - harco_network # Red vital para conectar con la base de datos 'global-db'
 
-# Docker creará una red interna 'default' solo para este proyecto.
-# El puerto 8000 queda abierto para que CUALQUIERA (incluido tu frontend) lo llame.
+networks:
+  auth-network:
+    driver: bridge
+  # Definición de la red externa de la base de datos
+  harco_network:
+    external: true
+    name: harco_network

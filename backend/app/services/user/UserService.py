@@ -8,7 +8,6 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.types.enums import UserRole, UserStatus
-from app.core.security import get_password_hash
 from app.interfaces.user.IUserService import IUserService
 from app.interfaces.user.IUserRepository import IUserRepository
 from app.services.user.UserValidationService import UserValidationService
@@ -79,9 +78,8 @@ class UserService(IUserService):
             user_data, current_user
         )
 
-        # Hashear contraseña
-        if "password" in user_data:
-            user_data["password_hash"] = get_password_hash(user_data.pop("password"))
+        # Delegar el hash de la contraseña al servicio especializado (SRP)
+        user_data = self.update_service.prepare_password_hash(user_data)
 
         return await self.user_repository.create(user_data)
 

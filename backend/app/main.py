@@ -6,7 +6,7 @@ import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 # --- NUEVA IMPORTACIÓN ---
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware # Esta linea es importante para que pueda funcionar correctamente con Cloudflare y Dokploy
 
 from app.core.config import settings
 from app.db.session import engine
@@ -42,11 +42,13 @@ async def lifespan(app: FastAPI):
 
         import asyncio
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, create_tables)
-
+        await loop.run_in_executor(None, create_tables) 
+    
     except Exception as e:
         print(f"❌ Error en DB: {str(e)}", file=sys.stderr)
         raise
+
+    print(f"--- Dominio de la aplicación: {settings.APP_DOMAIN} ---")
     yield
     engine.dispose()
 

@@ -18,44 +18,55 @@ frontend/
 ├── src/
 │   ├── components/
 │   │   ├── auth/          # Componentes de autenticación
-│   │   │   ├── LoginForm.svelte    # Formulario login tradicional
-│   │   │   └── GoogleButton.svelte # Botón OAuth con popup
+│   │   │   ├── LoginForm.svelte      # Formulario login tradicional
+│   │   │   ├── GoogleButton.svelte   # Botón OAuth con popup
+│   │   │   └── PendingApproval.svelte # Vista de usuario pendiente de aprobación
 │   │   ├── common/         # Componentes reutilizables
-│   │   │   └── Icon.svelte        # Componente centralizado de iconos SVG
+│   │   │   └── Icon.svelte           # Componente centralizado de iconos SVG
 │   │   └── dashboard/     # Componentes del dashboard
-│   │       ├── StatsCard.svelte    # Tarjetas de estadísticas
-│   │       ├── UserAvatar.svelte   # Avatar de usuario
-│   │       ├── RoleBadge.svelte     # Badge de rol
-│   │       ├── StatusBadge.svelte   # Badge de estado
-│   │       └── OriginBadge.svelte   # Badge de origen
+│   │       ├── StatsCard.svelte      # Tarjetas de estadísticas
+│   │       ├── UserAvatar.svelte     # Avatar de usuario (iniciales o imagen)
+│   │       ├── RoleBadge.svelte      # Badge de rol con colores
+│   │       ├── StatusBadge.svelte    # Badge de estado con indicadores
+│   │       ├── OriginBadge.svelte    # Badge de origen con dominio
+│   │       ├── ConfirmModal.svelte   # Modal de confirmación de acciones
+│   │       ├── OriginChart.svelte    # Gráfico de distribución por origen
+│   │       ├── PendingUserCard.svelte # Card de usuario pendiente de aprobación
+│   │       └── UsersTable.svelte     # Tabla de usuarios con filtros y sorting
 │   ├── config/
-│   │   ├── api.config.ts   # Configuración de URLs de API
-│   │   └── index.ts       # Configuración general
+│   │   ├── api.config.ts   # SSOT de URLs de API (BACKEND_URL + ENDPOINTS)
+│   │   └── index.ts       # Re-exports de configuración general
 │   ├── layouts/
-│   │   └── DashboardLayout.astro   # Layout principal del dashboard
+│   │   ├── Layout.astro          # Layout base (head, meta, estilos globales)
+│   │   └── DashboardLayout.astro # Layout del dashboard (sidebar + header)
 │   ├── pages/
-│   │   ├── index.astro     # Página principal (redirige a login)
+│   │   ├── index.astro     # Página raíz (redirige a login o dashboard)
 │   │   ├── login.astro     # Página de login completa
-│   │   ├── api/           # Endpoints API para callbacks
-│   │   │   └── v1/
-│   │   │       └── auth/
-│   │   │           └── callback.astro # Callback OAuth
-│   │   └── dashboard/     # Dashboard protegido
-│   │       ├── index.astro    # Panel principal
-│   │       ├── users/         # Gestión de usuarios
-│   │       │   └── index.astro
-│   │       ├── pending/       # Usuarios pendientes
-│   │       │   └── index.astro
-│   │       └── origins/       # Usuarios por origen
-│   │           └── index.astro
+│   │   ├── logout/
+│   │   │   └── index.astro # Limpieza de sesión y redirección a login
+│   │   ├── api/           # API Routes de Astro (SSR)
+│   │   │   ├── auth/
+│   │   │   │   └── session.ts   # POST — guarda JWT en cookie httpOnly
+│   │   │   └── users/
+│   │   │       └── action.ts    # PATCH — proxy de acciones sobre usuarios
+│   │   └── dashboard/     # Dashboard protegido (requiere sesión)
+│   │       ├── index.astro         # Panel principal con estadísticas
+│   │       ├── users/
+│   │       │   ├── index.astro     # Listado de usuarios con filtros
+│   │       │   └── [id].astro      # Detalle y edición de usuario (ruta dinámica)
+│   │       ├── pending/
+│   │       │   └── index.astro     # Aprobación de usuarios pendientes
+│   │       └── origins/
+│   │           └── index.astro     # Usuarios agrupados por origen
 │   ├── services/
-│   │   └── authService.ts # Servicio de autenticación
+│   │   └── authService.ts  # Servicio singleton de autenticación (login, getCurrentUser)
 │   ├── styles/
-│   │   └── global.css      # Estilos globales
+│   │   └── global.css      # Estilos globales y reset SVG
 │   ├── utils/
-│   │   └── date.ts         # Utilidades de fechas
-│   └── middleware.ts          # Middleware de rutas
-├── astro.config.mjs         # Configuración de Astro
+│   │   ├── date.ts         # Utilidades de formateo de fechas
+│   │   └── auth.roles.ts   # DASHBOARD_ROLES, canAccessDashboard(), isPendingOrRestricted()
+│   └── middleware.ts       # Middleware de protección de rutas (verifica cookie session)
+├── astro.config.mjs         # Configuración de Astro (Svelte + TailwindCSS)
 ├── svelte.config.js         # Configuración de Svelte
 ├── tsconfig.json            # Configuración de TypeScript
 ├── package.json             # Dependencias y scripts

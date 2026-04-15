@@ -9,7 +9,7 @@ let originsData = [];
 let error = null;
 
 try {
-  const response = await fetch(apiUrl(ENDPOINTS.origins));
+  const response = await fetch(apiUrl(ENDPOINTS.users.byOrigin));
   if (response.ok) {
     originsData = await response.json();
   } else {

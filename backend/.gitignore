@@ -177,6 +177,7 @@ cython_debug/
 .env.local
 .env.development
 .env.production
+.env.deploy
 .env.test
 
 # Database
@@ -307,3 +308,4 @@ inventory/
 # Local development
 .local/
 local/
+
