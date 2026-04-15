@@ -8,18 +8,22 @@ import node from '@astrojs/node';
 export default defineConfig({
   output: 'server',
   
+  // Seguridad: Aquí es donde evitamos el error 403
+  security: {
+    checkOrigin: false,
+    exclude: ['/api/auth/logout'] // Permitimos el logout sin validación estricta de origen
+  },
+  
   // Configuración del adaptador
   adapter: process.env.VERCEL 
     ? vercel() 
     : node({ 
-        mode: 'standalone' 
+        mode: 'standalone',
+        trustForwardedHeaders: true,
       }),
 
-  // 🚀 ESTO ES LO QUE FALTA:
-  // Forzamos a Astro/Node a escuchar en todas las interfaces (0.0.0.0)
-  // y en el puerto que Docker espera (4321)
   server: {
-    host: true, // Esto equivale a 0.0.0.0
+    host: true, // Escucha en todas las interfaces
     port: 4321,
     headers: {
       'Cross-Origin-Opener-Policy': 'unsafe-none',

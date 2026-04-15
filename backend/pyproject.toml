@@ -3,8 +3,8 @@ name = "auth-core-backend"
 version = "1.0.0"
 description = "Backend FastAPI application with PostgreSQL integration"
 authors = ["AuthCore Team"]
-readme = "README.md"
-packages = [{ include = "app" }]
+# Desactivamos el modo paquete para evitar errores de README o estructura de carpetas
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -35,9 +35,6 @@ isort = "^5.12.0"
 flake8 = "^6.0.0"
 mypy = "^1.5.0"
 pre-commit = "^3.4.0"
-
-[tool.poetry.scripts]
-auth-core = "app.main:main"
 
 [build-system]
 requires = ["poetry-core"]

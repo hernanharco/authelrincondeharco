@@ -14,7 +14,7 @@ error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 # 0. Cargar variables desde el .env
 if [ -f .env ]; then
     # Extraemos APP_DOMAIN eliminando posibles espacios o comentarios
-    APP_DOMAIN=$(grep '^APP_DOMAIN=' .env | cut -d '=' -f2 | sed 's/\r//g')
+    APP_DOMAIN=$(grep '^APP_DOMAIN=' .env.production | cut -d '=' -f2 | sed 's/\r//g')
 fi
 
 # Fallback por si la variable no existe en el .env

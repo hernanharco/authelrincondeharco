@@ -2,16 +2,22 @@ services:
   gateway:
     image: nginx:alpine
     container_name: authcore-gateway
+    restart: always
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # Usamos la carpeta de templates para que envsubst haga su magia
+      - ./nginx/conf.d/default.conf:/etc/nginx/templates/default.conf.template:ro
       - ./nginx/certs:/etc/ssl/certs:ro
+    environment:
+      # Pasamos la variable al contenedor para que Nginx no explote
+      - APP_DOMAIN=${APP_DOMAIN:-apilcl-auth.elrincondeharco.com}
     depends_on:
       - bkd-authcore
     networks:
       - auth-network
+      - harco_network # Conexión para que el gateway sepa llegar al bkd si fuera necesario
 
   bkd-authcore:
     build:
@@ -19,15 +25,20 @@ services:
       dockerfile: Dockerfile
     container_name: authcore-backend
     restart: always
-    # Eliminamos el mapeo de puertos 8000:8000 para que solo sea accesible vía el dominio
+    # No mapeamos el puerto 8000 al host por seguridad (SRP y aislamiento)
+    # Solo el gateway (puerto 443) expone el servicio al exterior.
+    env_file:
+      - .env.production
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    env_file:
-      - .env
-      - .env.production
     networks:
       - auth-network
+      - harco_network # Red vital para conectar con la base de datos 'global-db'
 
 networks:
   auth-network:
     driver: bridge
+  # Definición de la red externa de la base de datos
+  harco_network:
+    external: true
+    name: harco_network
