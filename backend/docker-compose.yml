@@ -1,19 +1,33 @@
 services:
+  gateway:
+    image: nginx:alpine
+    container_name: authcore-gateway
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certs:/etc/ssl/certs:ro
+    depends_on:
+      - bkd-authcore
+    networks:
+      - auth-network
+
   bkd-authcore:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: authcore-backend
     restart: always
-    ports:
-      - "8000:8000"
-    
-    # Crucial para resolver la DB si está en localhost del host (Linux)
+    # Eliminamos el mapeo de puertos 8000:8000 para que solo sea accesible vía el dominio
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    
     env_file:
       - .env
+      - .env.production
+    networks:
+      - auth-network
 
-# Docker creará una red interna 'default' solo para este proyecto.
-# El puerto 8000 queda abierto para que CUALQUIERA (incluido tu frontend) lo llame.
+networks:
+  auth-network:
+    driver: bridge

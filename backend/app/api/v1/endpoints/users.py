@@ -58,6 +58,34 @@ async def get_users_by_origin(
     return await user_service.get_users_by_origin(current_user)
 
 
+@router.get("/search", response_model=SearchResponse)
+async def search_users(
+    q: str = Query(..., min_length=2, description="Término de búsqueda"),
+    limit: int = Query(50, ge=1, le=100),
+    user_service: UserService = Depends(get_user_service),
+    current_user: User = Depends(get_current_manager_or_admin),
+):
+    """Busca usuarios por nombre, username o email."""
+    users = await user_service.search_users(q, current_user, limit)
+    return SearchResponse(
+        users=users,
+        total_found=len(users),
+        search_query=q,
+    )
+
+
+@router.patch("/bulk-update", response_model=List[UserResponse])
+async def bulk_update_users(
+    bulk_request: BulkUpdateRequest,
+    user_service: UserService = Depends(get_user_service),
+    current_user: User = Depends(get_current_admin_user),
+):
+    """Actualiza múltiples usuarios en lote."""
+    return await user_service.bulk_update_users(
+        bulk_request.user_ids, bulk_request.update_data, current_user
+    )
+
+
 @router.get("/", response_model=List[UserResponse])
 async def read_users(
     skip: int = Query(0, ge=0),
@@ -79,6 +107,9 @@ async def create_user(
     current_user: User = Depends(get_current_admin_user),
 ):
     return await user_service.create_user(user_in.model_dump(), current_user)
+
+
+# --- Rutas con path param — SIEMPRE después de las rutas estáticas ---
 
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -160,25 +191,6 @@ async def add_user_notes(
     )
 
 
-# --- Nuevos endpoints aprovechando la arquitectura especializada ---
-
-
-@router.get("/search", response_model=SearchResponse)
-async def search_users(
-    q: str = Query(..., min_length=2, description="Término de búsqueda"),
-    limit: int = Query(50, ge=1, le=100),
-    user_service: UserService = Depends(get_user_service),
-    current_user: User = Depends(get_current_manager_or_admin),
-):
-    """Busca usuarios por nombre, username o email."""
-    users = await user_service.search_users(q, current_user, limit)
-    return SearchResponse(
-        users=users,
-        total_found=len(users),
-        search_query=q,
-    )
-
-
 @router.get("/{user_id}/activity", response_model=UserActivitySummary)
 async def get_user_activity(
     user_id: int,
@@ -218,15 +230,3 @@ async def reset_user_password(
         user_id, password_data.new_password, current_user
     )
     return {"message": "Contraseña reseteada exitosamente"}
-
-
-@router.patch("/bulk-update", response_model=List[UserResponse])
-async def bulk_update_users(
-    bulk_request: BulkUpdateRequest,
-    user_service: UserService = Depends(get_user_service),
-    current_user: User = Depends(get_current_admin_user),
-):
-    """Actualiza múltiples usuarios en lote."""
-    return await user_service.bulk_update_users(
-        bulk_request.user_ids, bulk_request.update_data, current_user
-    )

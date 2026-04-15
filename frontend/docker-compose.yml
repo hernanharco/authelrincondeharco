@@ -21,7 +21,7 @@ services:
     environment:
       - PUBLIC_BACKEND_URL=${PUBLIC_BACKEND_URL}
     
-    env_file:
-      - .env
+    env_file:      
+      - .env.production
 
 # Al no declarar 'networks', Docker crea una red bridge por defecto para este proyecto.

@@ -167,6 +167,15 @@ class UserUpdateService:
 
         return await self.user_repository.update(user_id, update_data)
 
+    def prepare_password_hash(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Transforma 'password' → 'password_hash' hasheado con bcrypt.
+        SRP: toda manipulación de credenciales vive en este servicio.
+        """
+        if "password" in user_data:
+            user_data["password_hash"] = get_password_hash(user_data.pop("password"))
+        return user_data
+
     async def bulk_update_users(
         self, user_ids: list[int], update_data: Dict[str, Any], current_user: User
     ) -> list[User]:

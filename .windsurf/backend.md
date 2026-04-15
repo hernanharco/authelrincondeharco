@@ -4,7 +4,7 @@
 
 - **Framework**: FastAPI 0.128.0
 - **Base de Datos**: PostgreSQL con SQLAlchemy 2.0
-- **ORM**: SQLAlchemy 2.0 con Psycopg3
+- **ORM**: SQLAlchemy 2.0 con Psycopg3 (`psycopg[binary]`) — también incluye psycopg2-binary como fallback
 - **Autenticación**: JWT + bcrypt + Google OAuth 2.0
 - **Gestión de Dependencias**: Poetry
 - **Python**: ^3.10
@@ -17,12 +17,15 @@
 backend/
 ├── app/                    # Código fuente principal
 │   ├── api/               # Endpoints API
-│   │   ├── route.py       # Router principal
+│   │   ├── route.py       # Router principal (agrupa todos los routers v1)
 │   │   └── v1/            # API versión 1
 │   │       ├── dependencies.py  # Inyección de dependencias
 │   │       └── endpoints/      # Endpoints específicos
-│   │           ├── auth.py      # Autenticación (login, Google OAuth)
-│   │           └── users.py     # Gestión de usuarios
+│   │           ├── auth/        # Subpaquete de autenticación (SRP)
+│   │           │   ├── __init__.py  # Ensambla login_router + google_router
+│   │           │   ├── login.py     # POST /login — autenticación tradicional
+│   │           │   └── google.py    # GET /google + GET /callback — OAuth
+│   │           └── users.py     # Gestión de usuarios (rutas estáticas primero)
 │   ├── core/              # Configuración central
 │   │   ├── config.py     # Settings con Pydantic
 │   │   └── security.py    # JWT y utilidades de seguridad
@@ -37,7 +40,7 @@ backend/
 │   │   ├── base.py        # Modelo base
 │   │   └── user.py        # Modelo User completo
 │   ├── repositories/      # Acceso a datos
-│   │   └── user_repository.py # Repositorio de usuarios
+│   │   └── UserRepository.py  # Repositorio de usuarios (PascalCase)
 │   ├── schemas/           # Schemas Pydantic
 │   │   ├── auth.py        # Schemas de autenticación
 │   │   └── user.py        # Schemas de usuarios
@@ -50,7 +53,7 @@ backend/
 │   │       ├── UserService.py        # Facade principal
 │   │       ├── UserValidationService.py # Validaciones y permisos
 │   │       ├── UserQueryService.py  # Consultas y estadísticas
-│   │       └── UserUpdateService.py # Actualizaciones de datos
+│   │       ├── UserUpdateService.py # Actualizaciones de datos
 │   │       └── README.md           # Documentación de arquitectura
 │   ├── types/             # Tipos personalizados
 │   │   └── enums.py       # Enums UserRole, UserStatus
@@ -67,13 +70,14 @@ backend/
 │   ├── test_domain.py               # Tests dominio
 │   └── test_main.py               # Tests principales
 ├── scripts/               # Scripts utilitarios
+│   ├── entrypoint.sh      # Entrypoint Docker
+│   └── setup.sh           # Setup dev/prod/logs
+├── nginx/                 # Configuración Nginx (certs + conf.d)
 ├── .env                   # Variables de entorno
 ├── .env.example           # Plantilla de configuración
-├── package.json            # Scripts de desarrollo (Poetry)
-├── pyproject.toml         # Configuración Poetry
+├── pyproject.toml         # Configuración Poetry + herramientas
 ├── poetry.lock            # Lock file de dependencias
-├── poetry-setup.sh         # Script de configuración
-├── Dockerfile             # Imagen Docker
+├── Dockerfile             # Imagen Docker multi-stage
 ├── docker-compose.yml      # Compose
 └── README.md              # Documentación
 ```

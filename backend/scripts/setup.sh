@@ -1,8 +1,7 @@
 #!/bin/bash
-# Portfolio elRincondeHarco - Backend Setup Script
+# Portfolio elRincondeHarco - Unified Setup Script
 set -e
 
-# Colores para output
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -12,53 +11,56 @@ log()     { echo -e "${BLUE}[INFO]${NC} $1"; }
 success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-# Detectar comando docker compose
-if docker compose version > /dev/null 2>&1; then
-    DOCKER_COMPOSE="docker compose"
-else
-    DOCKER_COMPOSE="docker-compose"
+# 0. Cargar variables desde el .env
+if [ -f .env ]; then
+    # Extraemos APP_DOMAIN eliminando posibles espacios o comentarios
+    APP_DOMAIN=$(grep '^APP_DOMAIN=' .env | cut -d '=' -f2 | sed 's/\r//g')
 fi
 
-check_env() {
-    if [ ! -f .env ]; then
-        error "Archivo .env no encontrado en la carpeta backend. Por favor, créalo."
-    fi
-}
+# Fallback por si la variable no existe en el .env
+DOMAIN=${APP_DOMAIN:-lcl-auth.elrincondeharco.com}
+
+# Detectar docker compose
+DOCKER_COMPOSE="docker compose"
+if ! docker compose version > /dev/null 2>&1; then DOCKER_COMPOSE="docker-compose"; fi
 
 case "${1:-help}" in
     "prod")
-        log "Iniciando Backend + DB en modo producción..."
-        check_env
+        log "🚀 Iniciando simulación de producción para: $DOMAIN"
         
-        # Levantamos los servicios
+        # 1. Gestionar Certificados SSL
+        mkdir -p ./nginx/certs
+        if [ ! -f "./nginx/certs/auth.pem" ]; then
+            log "🔐 Generando certificados locales con mkcert..."
+            # Usamos la variable $DOMAIN
+            mkcert -cert-file ./nginx/certs/auth.pem -key-file ./nginx/certs/auth-key.pem "$DOMAIN"
+        else
+            log "✅ Certificados ya existentes."
+        fi
+
+        # 2. Verificar Archivo Hosts
+        if ! grep -q "$DOMAIN" /etc/hosts; then
+            log "📝 Añadiendo dominio al archivo /etc/hosts (requiere sudo)..."
+            echo "127.0.0.1 $DOMAIN" | sudo tee -a /etc/hosts
+        else
+            log "✅ Dominio ya configurado en /etc/hosts."
+        fi
+
+        # 3. Levantar Infraestructura
+        log "🐳 Levantando contenedores (Gateway + Backend)..."
+        # Docker Compose leerá automáticamente el .env para las variables internas
         $DOCKER_COMPOSE up --build -d
         
-        log "Verificando estabilidad del contenedor (5s)..."
-        sleep 5
-        
-        # Buscamos cualquier contenedor del proyecto que esté en estado 'running'
-        # Esto evita errores si el nombre del servicio varía entre entornos
-        RUNNING_CONTAINERS=$($DOCKER_COMPOSE ps --filter "status=running" -q)
-        
-        if [ -z "$RUNNING_CONTAINERS" ]; then
-            error "Ningún contenedor está corriendo. Revisa los logs con: ./scripts/setup.sh logs"
-        else
-            success "Servicios iniciados y estables en segundo plano."
-            log "Puedes ver los logs en tiempo real con: ./scripts/setup.sh logs"
-        fi
+        success "Entorno listo: https://$DOMAIN"
         ;;
     "stop")
-        log "Deteniendo servicios..."
+        log "🛑 Deteniendo servicios..."
         $DOCKER_COMPOSE down
         ;;
     "logs")
         $DOCKER_COMPOSE logs -f
         ;;
-    "status")
-        $DOCKER_COMPOSE ps
-        ;;
     *)
-        echo -e "${BLUE}Uso:${NC} $0 {prod|stop|logs|status}"
-        exit 1
+        echo -e "${BLUE}Uso:${NC} $0 {prod|stop|logs}"
         ;;
 esac
