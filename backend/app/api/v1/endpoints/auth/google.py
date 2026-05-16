@@ -1,8 +1,9 @@
 # app/api/v1/endpoints/auth/google.py
+import json
 import logging
-from urllib.parse import urlparse, urlencode
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 
 from app.api.v1.dependencies import get_auth_service
@@ -11,91 +12,100 @@ from app.services.auth.AuthService import AuthService
 
 router = APIRouter()
 
-# Construimos la URI de redirección que Google tiene registrada en su consola
 REDIRECT_URI = f"{settings.backend_url}/api/v1/auth/callback"
+FRONTEND_URL = settings.frontend_origin or "http://localhost:4321"
+
 
 @router.get("/google")
-async def google_login(redirect_to: str = None):
+async def google_login(redirect_to: str = "/dashboard"):
     """
-    Punto de entrada para el login de Google.
-    'redirect_to' es la URL del frontend a la que volveremos tras el éxito.
+    Inicia el flujo de Google OAuth.
+    redirect_to se guarda en el state de OAuth para redirigir después del login.
     """
-    # Si no viene redirect_to, usamos el origen por defecto definido en .env
-    target_url = redirect_to or f"{settings.frontend_origin}/dashboard"
-    
+    state_payload = json.dumps({"redirect_to": redirect_to})
+
     auth_params = {
         "client_id": settings.google_client_id,
         "redirect_uri": REDIRECT_URI,
         "response_type": "code",
         "scope": "openid email profile",
-        "state": target_url,  # Pasamos la URL de destino en el state
         "access_type": "offline",
         "prompt": "select_account",
+        "state": state_payload,
     }
-    
     auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(auth_params)}"
     return RedirectResponse(url=auth_url)
 
+
+def _get_frontend_redirect(state: str = "") -> str:
+    """
+    Extrae el redirect_to del state de OAuth.
+    redirect_to puede ser URL completa (http://...) o ruta relativa (/dashboard).
+    Si es completa, se usa directamente. Si es relativa, se antepone FRONTEND_URL.
+    """
+    default = f"{FRONTEND_URL}/dashboard"
+    if not state:
+        return default
+    try:
+        payload = json.loads(state)
+        redirect_to = payload.get("redirect_to", "")
+        if not redirect_to:
+            return default
+        # Si ya es URL completa, usarla directamente
+        if redirect_to.startswith("http://") or redirect_to.startswith("https://"):
+            return redirect_to
+        # Si es ruta relativa, anteponer FRONTEND_URL
+        return f"{FRONTEND_URL}{redirect_to}"
+    except (json.JSONDecodeError, TypeError):
+        return default
+
+
 @router.get("/callback")
 async def google_callback(
-    code: str, 
-    state: str, 
+    code: str,
+    state: str = "",
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """
-    Callback donde Google nos envía el código de autorización.
-    """
     try:
-        # 1. Validar el origen (Seguridad contra Open Redirect)
-        # Usamos la lógica robusta de settings.cors_origins que viene del .env
-        parsed_url = urlparse(state)
-        origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
-        
-        if origin not in settings.cors_origins:
-            logging.warning(f"⚠️ Intento de redirección no permitida a: {origin}")
-            # Fallback seguro al dominio principal del frontend
-            final_url = f"{settings.frontend_origin}/dashboard"
-        else:
-            final_url = state
-
-        # 2. Intercambiar código por usuario y token interno
-        # Esta lógica vive en tu AuthService siguiendo SRP
-        user, internal_token, expires_in = auth_service.process_google_login(
-            code=code, 
+        user, internal_token, expires_in = await auth_service.process_google_login(
+            code=code,
             redirect_uri=REDIRECT_URI
         )
 
-        # 3. Preparar la respuesta de redirección al frontend
-        response = RedirectResponse(url=final_url)
-
-        # 4. Configuración inteligente de la Cookie
+        # Login exitoso — setear cookie y redirigir al frontend
         is_prod = settings.is_production
-        
-        # Extraemos el dominio base para que la cookie sea compartida
-        # Ejemplo: de 'auth.elrincondeharco.com' sacamos '.elrincondeharco.com'
-        cookie_domain = None
-        if is_prod:
-            # Puedes ponerlo manual o extraerlo de settings.frontend_origin
-            # Importante: El punto inicial permite que funcione en TODOS los subdominios
-            cookie_domain = ".elrincondeharco.com" 
+        cookie_domain = ".elrincondeharco.com" if is_prod else None
+        frontend_url = _get_frontend_redirect(state)
+
+        response = RedirectResponse(url=frontend_url)
 
         response.set_cookie(
             key="access_token",
             value=internal_token,
             httponly=True,
-            max_age=expires_in * 60,
+            max_age=expires_in,
             path="/",
-            # Crucial: 'none' requiere 'secure=True'
             samesite="none" if is_prod else "lax",
-            secure=is_prod, 
-            domain=cookie_domain, # <--- ESTO es lo que falta
+            secure=is_prod,
+            domain=cookie_domain,
         )
-        
-        logging.info(f"✅ Login exitoso para el usuario: {user.email}")
+
+        logging.info(f"✅ Login Google exitoso para: {user.email}")
         return response
 
+    except HTTPException as e:
+        if e.detail == "PENDING_APPROVAL":
+            logging.info(f"⏳ Nuevo usuario registrado vía Google: pendiente de aprobación")
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?status=pending"
+            )
+
+        logging.error(f"❌ Error en Google Callback: {e.detail}")
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/login?error={urlencode({'detail': str(e.detail)})}"
+        )
     except Exception as e:
         logging.error(f"❌ Error en Google Callback: {str(e)}")
-        # En caso de error, devolvemos al usuario al login con un mensaje
-        error_redirect = f"{settings.frontend_origin}/login?error=auth_failed"
-        return RedirectResponse(url=error_redirect)
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/login?error={urlencode({'detail': 'Error técnico al procesar el login'})}"
+        )

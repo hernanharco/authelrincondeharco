@@ -1,7 +1,7 @@
 """
 Servicio de Tokens JWT - Principio de Responsabilidad Única
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Tuple
 from jose import JWTError, jwt
 from app.core.config import settings
@@ -28,10 +28,11 @@ class TokenService(ITokenService):
         """
         to_encode = data.copy()
         
+        now = datetime.now(timezone.utc)
         if expires_delta:
-            expire = datetime.utcnow() + timedelta(seconds=expires_delta)
+            expire = now + timedelta(seconds=expires_delta)
         else:
-            expire = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)
+            expire = now + timedelta(minutes=self.access_token_expire_minutes)
         
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)

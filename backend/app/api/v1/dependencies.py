@@ -15,6 +15,9 @@ from app.interfaces.auth.IOAuthService import IOAuthService
 from app.interfaces.auth.IAuthService import IAuthService
 from app.interfaces.user.IUserService import IUserService
 from app.interfaces.user.IUserRepository import IUserRepository
+from app.interfaces.company.ICompanyProfileRepository import ICompanyProfileRepository
+from app.repositories.CompanyProfileRepository import CompanyProfileRepository
+from app.services.company.CompanyProfileService import CompanyProfileService
 
 # Servicios Singleton (cacheados para rendimiento)
 @lru_cache()
@@ -60,6 +63,21 @@ def get_user_service(
     Obtiene el servicio de usuarios con sus dependencias.
     """
     return UserService(db, user_repository)
+
+
+def get_company_profile_repository(
+    db: Session = Depends(get_db),
+) -> ICompanyProfileRepository:
+    """Obtiene el repositorio de perfiles de empresa."""
+    return CompanyProfileRepository(db)
+
+
+def get_company_profile_service(
+    db: Session = Depends(get_db),
+    company_repository: ICompanyProfileRepository = Depends(get_company_profile_repository),
+) -> CompanyProfileService:
+    """Obtiene el servicio de perfiles de empresa."""
+    return CompanyProfileService(db, company_repository)
 
 
 # Dependencias de seguridad existentes (mantenidas para compatibilidad)

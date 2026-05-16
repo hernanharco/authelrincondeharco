@@ -3,7 +3,7 @@ Security utilities for authentication and authorization.
 """
 
 import bcrypt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Union, Optional
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status, Request
@@ -54,7 +54,7 @@ def create_access_token(
     subject: Union[str, Any],
     expires_delta: Optional[timedelta] = None
 ) -> str:
-    expire = datetime.utcnow() + (
+    expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode = {"exp": expire, "sub": str(subject)}

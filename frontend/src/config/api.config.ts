@@ -3,7 +3,7 @@
  * Responsabilidad única: centralizar URLs y rutas de la API.
  */
 
-export const BACKEND_URL = import.meta.env.PUBLIC_BACKEND_URL || 'http://localhost:8001';
+export const BACKEND_URL = import.meta.env.PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 export const ENDPOINTS = {
   auth: {

@@ -1,14 +1,16 @@
 """
 app/repositories/UserRepository.py
 Responsabilidad única: acceso a datos del usuario.
+Implementa IUserRepository para cumplir con el Principio de Inversión de Dependencias.
 """
 from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.types.enums import UserRole, UserStatus
+from app.interfaces.user.IUserRepository import IUserRepository
 
 
-class UserRepository:
+class UserRepository(IUserRepository):
     def __init__(self, db: Session):
         self.db = db
 
@@ -83,6 +85,9 @@ class UserRepository:
 
     async def exists_by_username(self, username: str) -> bool:
         return self.db.query(User).filter(User.username == username).first() is not None
+
+    async def exists_by_email(self, email: str) -> bool:
+        return self.db.query(User).filter(User.email == email).first() is not None
 
     async def create(self, data: Dict[str, Any]) -> User:
         user = User(**data)

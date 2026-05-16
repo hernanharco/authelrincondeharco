@@ -4,7 +4,7 @@ Servicio de Autenticación - Principio de Responsabilidad Única
 """
 
 from typing import Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.user import User
@@ -122,57 +122,23 @@ class AuthService(IAuthService):
             "type": "access",
         }
         token, expires_at = await self.token_service.create_access_token(token_data)
-        expires_in = int((expires_at - datetime.utcnow()).total_seconds())
+        expires_in = int((expires_at - datetime.now(timezone.utc)).total_seconds())
         return token, expires_in
 
     async def revoke_token(self, token: str) -> bool:
         return await self.token_service.revoke_token(token)
 
-    def process_google_login(
+    async def process_google_login(
         self, code: str, redirect_uri: str
     ) -> Tuple[User, str, int]:
-        from datetime import datetime, timedelta, timezone
-        from jose import jwt
-        from app.core.config import settings
-        import requests as http_requests
-
+        """
+        Procesa un login con Google usando el Authorization Code Flow.
+        Ahora usa las dependencias inyectadas (oauth_service, user_repository, token_service)
+        en lugar de hacer llamadas HTTP directas y manipular la BD a mano.
+        """
         try:
-            token_url = "https://oauth2.googleapis.com/token"
-            data = {
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
-                "code": code,
-                "grant_type": "authorization_code",
-                "redirect_uri": redirect_uri,
-            }
-
-            response = http_requests.post(token_url, data=data)
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Error al intercambiar código con Google: {response.text}",
-                )
-
-            token_data = response.json()
-            access_token = token_data.get("access_token")
-
-            if not access_token:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"No se recibió access_token. Respuesta: {token_data}",
-                )
-
-            userinfo_response = http_requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-            if userinfo_response.status_code != 200:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Error al obtener información del usuario de Google",
-                )
-
-            userinfo = userinfo_response.json()
+            # Paso 1: intercambiar code por info del usuario (delega en OAuthService)
+            userinfo = await self.oauth_service.exchange_code(code, redirect_uri)
             email = userinfo.get("email")
             name = userinfo.get("name", "")
 
@@ -182,36 +148,38 @@ class AuthService(IAuthService):
                     detail="No se pudo obtener email de Google",
                 )
 
-            user = self.db.query(User).filter(User.email == email).first()
+            # Paso 2: buscar o crear usuario (delega en UserRepository)
+            user = await self.user_repository.get_by_email(email)
 
             if not user:
+                # Nuevo usuario — crear como pendiente de aprobación
                 base_username = email.split("@")[0]
                 username = base_username
                 counter = 1
-                while self.db.query(User).filter(User.username == username).first():
+                while await self.user_repository.exists_by_username(username):
                     username = f"{base_username}{counter}"
                     counter += 1
 
-                user = User(
-                    username=username,
-                    email=email,
-                    full_name=name,
-                    password_hash="",
-                    role=UserRole.NONE,        # 👈 cambiado
-                    status=UserStatus.PENDING,  # 👈 cambiado
-                    is_active=False,            # 👈 cambiado
-                    is_locked=False,
+                await self.user_repository.create(
+                    {
+                        "username": username,
+                        "email": email,
+                        "full_name": name,
+                        "password_hash": "",
+                        "role": UserRole.NONE,
+                        "status": UserStatus.PENDING,
+                        "is_active": False,
+                        "is_locked": False,
+                        "origin": "google",
+                    }
                 )
-                self.db.add(user)
-                self.db.commit()
-                self.db.refresh(user)
 
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="PENDING_APPROVAL",
                 )
 
-            # Usuario existente
+            # Usuario existente — validar estado
             if user.status == UserStatus.PENDING:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -224,26 +192,17 @@ class AuthService(IAuthService):
                     detail="Cuenta bloqueada. Contacte con el administrador.",
                 )
 
-            user.last_login = datetime.now(timezone.utc)
-            self.db.commit()
+            # Paso 3: actualizar last_login y generar token (delega en servicios)
+            await self.user_repository.update(user.id, {"last_login": datetime.now(timezone.utc)})
 
-            expires_in = settings.access_token_expire_minutes * 60
-            expire = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
-
-            payload = {
-                "sub": str(user.id),
-                "username": user.username,
-                "email": user.email,
-                "role": user.role.value if hasattr(user.role, "value") else user.role,
-                "exp": expire,
-            }
-
-            token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.algorithm)
-            return user, token, expires_in
+            internal_token, expires_in = await self.create_access_token(user)
+            return user, internal_token, expires_in
 
         except HTTPException:
             raise
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Error en Google OAuth: {str(e)}",

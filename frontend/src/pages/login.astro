@@ -6,15 +6,17 @@ import Layout from "@layouts/Layout.astro";
 import LoginForm from "@components/auth/LoginForm.svelte";
 import GoogleButton from "@components/auth/GoogleButton.svelte";
 import PendingApproval from "@components/auth/PendingApproval.svelte";
+import AuthAlert from "@components/auth/AuthAlert.svelte";
 import { apiUrl, ENDPOINTS } from "@config/api.config";
 import { canAccessDashboard } from "@utils/auth.roles";
 
 // 1. CAPTURA DE PARÁMETROS
 const redirectParam = Astro.url.searchParams.get("redirect") ?? "/dashboard";
 const status = Astro.url.searchParams.get("status");
+const error = Astro.url.searchParams.get("error");
 const isPending = status === "pending";
 
-// 2. GUARDIA DE ENTRADA mejorada
+// 2. GUARDIA DE ENTRADA
 const sessionCookie = Astro.cookies.get("access_token");
 
 if (sessionCookie?.value) {
@@ -26,17 +28,14 @@ if (sessionCookie?.value) {
     if (check.ok) {
       const user = await check.json();
       if (canAccessDashboard(user.role)) {
-        // Normalizamos la redirección: si no es URL completa y no empieza con /, se lo ponemos.
         const safeRedirect = redirectParam.startsWith('http') 
           ? redirectParam 
           : (redirectParam.startsWith('/') ? redirectParam : `/${redirectParam}`);
-          
         return Astro.redirect(safeRedirect);
       } else if (!isPending) {
         return Astro.redirect("/login?status=pending");
       }
     } else {
-      // Importante: El path "/" asegura que se borre en todo el sitio
       Astro.cookies.delete("access_token", { path: "/" });
     }
   } catch (e) {
@@ -48,8 +47,12 @@ if (sessionCookie?.value) {
 <Layout title={isPending ? "Solicitud Pendiente - AuthCore" : "Iniciar Sesión - AuthCore"}>
   <main class="min-h-screen flex items-center justify-center bg-linear-to-br from-[#0F1117] via-[#1A1D27] to-[#0F1117] px-4 py-12 sm:px-6 lg:px-8">
     <div class="max-w-md w-full">
-      <div class="bg-[#1E2130] shadow-2xl rounded-2xl border border-[#2D3148] overflow-hidden">
+      
+      {!isPending && (status || error) && (
+        <AuthAlert client:load {status} {error} />
+      )}
 
+      <div class="bg-[#1E2130] shadow-2xl rounded-2xl border border-[#2D3148] overflow-hidden">
         {isPending ? (
           <PendingApproval client:load />
         ) : (
@@ -66,9 +69,8 @@ if (sessionCookie?.value) {
             </div>
 
             <div class="space-y-6">
-              <!-- Pasamos redirectParam a LoginForm para el login tradicional -->
               <LoginForm client:load {redirectParam} />
-
+              
               <div class="relative my-6">
                 <div class="absolute inset-0 flex items-center">
                   <div class="w-full border-t border-[#2D3148]"></div>
@@ -78,22 +80,11 @@ if (sessionCookie?.value) {
                 </div>
               </div>
 
-              <!-- Pasamos redirectParam a GoogleButton para el flujo OAuth inteligente -->
               <GoogleButton client:load {redirectParam} />
-            </div>
-
-            <div class="mt-8 text-center">
-              <a href="/forgot-password" class="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors">
-                ¿Olvidaste tu contraseña?
-              </a>
             </div>
           </div>
         )}
       </div>
-
-      <p class="mt-6 text-center text-xs text-[#4B5563]">
-        &copy; 2026 AuthCore — Sistema Seguro y Modular de elrincondeharco.com.
-      </p>
     </div>
   </main>
 </Layout>
