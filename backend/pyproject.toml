@@ -23,8 +23,11 @@ google-auth = "^2.48.0"
 google-auth-oauthlib = "^1.2.4"
 requests = "^2.32.5"
 requests-oauthlib = "^2.0.0"
+httpx = "^0.28.1"
 gunicorn = "^25.0.1"
 psycopg = {extras = ["binary"], version = "^3.3.3"}
+slowapi = "^0.1.9"
+aiosqlite = "^0.20.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"

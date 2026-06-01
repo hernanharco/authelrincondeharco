@@ -23,7 +23,14 @@ class TestAuthService:
     @pytest.fixture
     def auth_service(self, db_session):
         """Instancia de AuthService para tests"""
-        return AuthService(db_session)
+        from app.services.auth.TokenService import TokenService
+        from app.services.auth.GoogleOAuthService import GoogleOAuthService
+        from app.repositories.UserRepository import UserRepository
+        return AuthService(
+            token_service=TokenService(),
+            oauth_service=GoogleOAuthService(),
+            user_repository=UserRepository(db_session),
+        )
 
     @pytest.fixture
     def test_user(self):

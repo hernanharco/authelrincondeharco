@@ -2,14 +2,7 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
-# Importamos los modelos aquí para que se registren en el objeto Base
-# Asegúrate de que la ruta coincida con tus archivos reales
-try:
-    from app.models.user import User
-except ImportError:
-    pass
-
-try:
-    from app.models.company_profile import CompanyProfile
-except ImportError:
-    pass
+# ── Registro de modelos en Base.metadata ────────────────────────
+# Los modelos NO se importan aquí para evitar circular imports.
+# Se importan en app/models/__init__.py que a su vez es importado
+# en main.py antes de create_all().

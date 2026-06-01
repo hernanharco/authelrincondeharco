@@ -1,12 +1,18 @@
 """
 Servicio de Google OAuth - Principio de Responsabilidad Única
+Usa httpx.AsyncClient para NO bloquear el event loop.
+Antes usaba requests (síncrono) — cada llamada a Google congelaba
+el servidor mientras esperaba la respuesta.
 """
 from typing import Dict, Any, Optional
 from fastapi import HTTPException, status
-import requests
+import httpx
 from app.core.config import settings
 from app.models.user import User
 from app.interfaces.auth.IOAuthService import IOAuthService
+
+# Timeout para llamadas a Google: 10 segundos es más que suficiente
+_HTTPX_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 
 class GoogleOAuthService(IOAuthService):
@@ -14,11 +20,14 @@ class GoogleOAuthService(IOAuthService):
     def __init__(self):
         self.client_id = settings.google_client_id
         self.client_secret = settings.google_client_secret
+        # Cliente HTTP reutilizable con connection pooling
+        # Usa un solo cliente en vez de crear uno nuevo por request
+        self._client = httpx.AsyncClient(timeout=_HTTPX_TIMEOUT)
 
     async def exchange_code(self, code: str, redirect_uri: str) -> Dict[str, Any]:
         """
         Intercambia un authorization code por tokens y devuelve info del usuario.
-        Authorization Code Flow.
+        Authorization Code Flow — ahora async con httpx.
         """
         try:
             # Paso 1: intercambiar code por access_token
@@ -30,7 +39,7 @@ class GoogleOAuthService(IOAuthService):
                 "grant_type": "authorization_code",
                 "redirect_uri": redirect_uri,
             }
-            response = requests.post(token_url, data=data)
+            response = await self._client.post(token_url, data=data)
             if response.status_code != 200:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -46,7 +55,7 @@ class GoogleOAuthService(IOAuthService):
                 )
 
             # Paso 2: obtener info del usuario con el access_token
-            userinfo_response = requests.get(
+            userinfo_response = await self._client.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
@@ -60,10 +69,15 @@ class GoogleOAuthService(IOAuthService):
 
         except HTTPException:
             raise
-        except requests.exceptions.ConnectionError:
+        except httpx.ConnectError:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="No se pudo contactar con los servidores de Google",
+            )
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Los servidores de Google tardaron demasiado en responder",
             )
         except Exception as e:
             raise HTTPException(
@@ -76,7 +90,7 @@ class GoogleOAuthService(IOAuthService):
         Verifica un access_token llamando a la API de userinfo de Google.
         """
         try:
-            response = requests.get(
+            response = await self._client.get(
                 "https://www.googleapis.com/oauth2/v3/userinfo",
                 headers={"Authorization": f"Bearer {token}"}
             )
@@ -91,10 +105,15 @@ class GoogleOAuthService(IOAuthService):
             
         except HTTPException:
             raise
-        except requests.exceptions.ConnectionError:
+        except httpx.ConnectError:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="No se pudo contactar con los servidores de Google"
+            )
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Los servidores de Google tardaron demasiado en responder",
             )
         except Exception as e:
             raise HTTPException(

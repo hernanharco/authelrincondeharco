@@ -4,7 +4,7 @@ Servicio de Consultas de Usuarios - Principio de Responsabilidad Única
 
 from typing import List, Optional, Dict, Any
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.types.enums import UserRole
 from app.interfaces.user.IUserRepository import IUserRepository
@@ -17,7 +17,7 @@ class UserQueryService:
     SRP: Única responsabilidad = operaciones de lectura y análisis de datos.
     """
 
-    def __init__(self, db: Session, user_repository: IUserRepository):
+    def __init__(self, db: AsyncSession, user_repository: IUserRepository):
         self.db = db
         self.user_repository = user_repository
 

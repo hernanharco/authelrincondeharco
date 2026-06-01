@@ -4,7 +4,7 @@ Servicio de Actualización de Usuarios - Principio de Responsabilidad Única
 
 from typing import Dict, Any
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.types.enums import UserRole, UserStatus
 from app.core.security import get_password_hash
@@ -18,7 +18,7 @@ class UserUpdateService:
     SRP: Única responsabilidad = modificar datos de usuarios.
     """
 
-    def __init__(self, db: Session, user_repository: IUserRepository):
+    def __init__(self, db: AsyncSession, user_repository: IUserRepository):
         self.db = db
         self.user_repository = user_repository
 

@@ -3,7 +3,11 @@
  * Responsabilidad única: centralizar URLs y rutas de la API.
  */
 
-export const BACKEND_URL = import.meta.env.PUBLIC_BACKEND_URL || 'http://localhost:8000';
+// En SSR (server-side dentro del contenedor Docker), usamos API_TARGET que apunta al servicio interno
+// En cliente (browser), usamos PUBLIC_BACKEND_URL que es accesible desde el navegador
+export const BACKEND_URL = import.meta.env.SSR
+  ? (process.env.API_TARGET || 'http://localhost:8000')
+  : (import.meta.env.PUBLIC_BACKEND_URL || 'http://localhost:8000');
 
 export const ENDPOINTS = {
   auth: {
@@ -27,6 +31,15 @@ export const ENDPOINTS = {
     resetPassword: (id: string) => `/api/v1/users/${id}/reset-password`,
     notes: (id: string) => `/api/v1/users/${id}/notes`,
     bulkUpdate: '/api/v1/users/bulk-update',
+  },
+  company: {
+    list: '/api/v1/company/',
+    me: '/api/v1/company/me',
+    byId: (userId: number | string) => `/api/v1/company/${userId}`,
+    create: (userId: number | string) => `/api/v1/company/${userId}`,
+    update: (userId: number | string) => `/api/v1/company/${userId}`,
+    upsert: (userId: number | string) => `/api/v1/company/${userId}/upsert`,
+    delete: (userId: number | string) => `/api/v1/company/${userId}`,
   },
 };
 

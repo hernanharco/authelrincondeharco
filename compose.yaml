@@ -1,0 +1,125 @@
+# ============================================================
+# compose.yaml — authCore (entorno de desarrollo)
+# ============================================================
+# Red compartida: se conecta con Portfolio vía elrincondeharco_net
+# Crear la red ANTES de levantar:
+#   docker network create elrincondeharco_net
+# ============================================================
+
+services:
+  # ── Base de datos ────────────────────────────────────────────
+  authcore-db:
+    image: postgres:16-alpine
+    container_name: authcore-dev-db
+    restart: unless-stopped
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: authcore
+      POSTGRES_USER: authcore
+      POSTGRES_PASSWORD: authcore_dev
+    volumes:
+      - authcore_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authcore"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    networks:
+      - elrincondeharco_net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # ── Backend FastAPI ──────────────────────────────────────────
+  authcore-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: authcore-dev-backend
+    entrypoint: ["/bin/bash", "/app/scripts/entrypoint.dev.sh"]
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      PGHOST: 172.19.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      PGSCHEMA: authharco
+      SECRET_KEY: dev-secret-key-no-usar-en-produccion
+      ALGORITHM: RS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+      ENVIRONMENT: development
+      DEBUG: "true"
+      APP_DOMAIN: localhost
+      FRONTEND_ORIGIN: "http://localhost:4321"
+      BACKEND_URL: "http://localhost:8000"
+      CORS_ORIGINS: '["http://localhost:4321", "http://localhost:4322"]'
+      CLOUDINARY_CLOUD_NAME: ""
+      CLOUDINARY_API_KEY: ""
+      CLOUDINARY_API_SECRET: ""
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/scripts:/app/scripts
+      - authcore_rsa_keys:/app/keys
+      - /app/.venv
+    depends_on:
+      authcore-db:
+        condition: service_healthy
+    networks:
+      - elrincondeharco_net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # ── Frontend Astro ───────────────────────────────────────────
+  authcore-web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        PUBLIC_BACKEND_URL: "http://localhost:8000"
+    container_name: authcore-dev-frontend
+    command: ["pnpm", "dev"]
+    restart: unless-stopped
+    ports:
+      - "4321:4321"
+    environment:
+      PUBLIC_BACKEND_URL: "http://localhost:8000"
+      API_TARGET: "http://authcore-api:8000"
+      HOST: "0.0.0.0"
+      PORT: "4321"
+      NODE_ENV: development
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/astro.config.mjs:/app/astro.config.mjs
+      - /app/node_modules
+    depends_on:
+      - authcore-api
+    networks:
+      - elrincondeharco_net
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: "1.0"
+
+# ── Volúmenes persistentes ─────────────────────────────────────
+volumes:
+  authcore_pgdata:
+  authcore_rsa_keys:
+
+# ── Red compartida con Portfolio ───────────────────────────────
+networks:
+  elrincondeharco_net:
+    external: true
+    name: elrincondeharco_net

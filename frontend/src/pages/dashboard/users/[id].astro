@@ -5,6 +5,7 @@ import RoleBadge from '@components/dashboard/RoleBadge.svelte';
 import StatusBadge from '@components/dashboard/StatusBadge.svelte';
 import OriginBadge from '@components/dashboard/OriginBadge.svelte';
 import UserAvatar from '@components/dashboard/UserAvatar.svelte';
+import CompanyProfileForm from '@components/dashboard/CompanyProfileForm.svelte';
 import { apiUrl, ENDPOINTS } from '@config/api.config';
 
 const token = Astro.cookies.get('access_token')?.value;
@@ -202,6 +203,9 @@ function formatDate(d: string) {
         </div>
       </div>
     </div>
+
+    <!-- Perfil de Empresa -->
+    <CompanyProfileForm client:load {token} userId={Number(id)} />
   </div>
 
   <script>

@@ -6,7 +6,7 @@ Datos maestros de la empresa asociada a un usuario.
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from app.models.base import Base
 
@@ -59,6 +59,12 @@ class CompanyProfile(Base):
         comment="IBAN para pagos/transferencias",
     )
 
+    email = Column(
+        String(255),
+        nullable=True,
+        comment="Correo de contacto público de la empresa",
+    )
+
     phone = Column(
         String(20),
         nullable=True,
@@ -85,7 +91,9 @@ class CompanyProfile(Base):
     )
 
     # Relación con User (opcional, para navegación ORM)
-    user = relationship("User", backref="company_profile", uselist=False)
+    # NOTA: uselist=False en el backref es OBLIGATORIO para que user.company_profile
+    # sea un objeto único y no una lista. Sin esto, el JWT enriquecido falla.
+    user = relationship("User", backref=backref("company_profile", uselist=False))
 
     def __repr__(self) -> str:
         return f"<CompanyProfile(id={self.id}, company='{self.company_name}')>"

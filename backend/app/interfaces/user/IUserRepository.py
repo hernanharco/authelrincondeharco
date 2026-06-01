@@ -98,8 +98,8 @@ class IUserRepository(ABC):
     @abstractmethod
     async def get_users_by_origin(self) -> List[Dict[str, Any]]:
         """
-        Usuarios agrupados por origen.
+        Usuarios agrupados por origen con GROUP BY.
         Returns:
-            Lista de dicts con origin, users, count
+            Lista de dicts con origin, count (sin datos de usuarios individuales)
         """
         pass

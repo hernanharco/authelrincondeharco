@@ -1,16 +1,21 @@
 """
 Security utilities for authentication and authorization.
+Usa RS256: firma con clave privada, verifica con clave pública.
+Incluye iat (issued at) y jti (JWT ID) para trazabilidad de tokens.
 """
 
+import uuid
 import bcrypt
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union, Optional
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.crypto import get_private_key, get_public_key
 from app.db.session import get_db
 from app.models.user import User, UserRole
 
@@ -48,23 +53,31 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except Exception:
         return False
 
-# --- TOKENS JWT ---
+# --- TOKENS JWT (RS256) ---
 
 def create_access_token(
     subject: Union[str, Any],
     expires_delta: Optional[timedelta] = None
 ) -> str:
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    """Crea un JWT firmado con RSA (RS256) incluyendo iat y jti."""
+    now = datetime.now(timezone.utc)
+    expire = now + (
+        expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
     )
-    to_encode = {"exp": expire, "sub": str(subject)}
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.algorithm)
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "iat": now,
+        "jti": str(uuid.uuid4()),
+    }
+    private_key = get_private_key()
+    return jwt.encode(to_encode, private_key, algorithm=settings.algorithm)
 
-# --- DEPENDENCIAS BASE ---
+# --- DEPENDENCIAS BASE (ASYNC) ---
 
-def get_current_user(
+async def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -72,14 +85,16 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.algorithm])
+        public_key = get_public_key()
+        payload = jwt.decode(token, public_key, algorithms=[settings.algorithm])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    result = await db.execute(select(User).where(User.id == int(user_id)))
+    user = result.scalar_one_or_none()
     if user is None:
         raise credentials_exception
     return user

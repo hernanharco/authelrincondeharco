@@ -1,0 +1,16 @@
+---
+export const prerender = false;
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import CompanyProfileForm from '../../components/dashboard/CompanyProfileForm.svelte';
+
+const token = Astro.cookies.get('access_token')?.value;
+if (!token) {
+  return Astro.redirect('/login');
+}
+---
+
+<DashboardLayout title="Mi Perfil de Empresa">
+  <main class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <CompanyProfileForm client:load {token} />
+  </main>
+</DashboardLayout>

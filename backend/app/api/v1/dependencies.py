@@ -2,7 +2,7 @@
 Dependencias de Inyección - Principio de Inversión de Dependencias
 """
 from functools import lru_cache
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 from app.db.session import get_db
 from app.services.auth.TokenService import TokenService
@@ -36,7 +36,7 @@ def get_oauth_service() -> IOAuthService:
     return GoogleOAuthService()
 
 
-def get_user_repository(db: Session = Depends(get_db)) -> IUserRepository:
+def get_user_repository(db: AsyncSession = Depends(get_db)) -> IUserRepository:
     """
     Obtiene el repositorio de usuarios.
     """
@@ -44,19 +44,20 @@ def get_user_repository(db: Session = Depends(get_db)) -> IUserRepository:
 
 
 def get_auth_service(
-    db: Session = Depends(get_db),
     token_service: ITokenService = Depends(get_token_service),
     oauth_service: IOAuthService = Depends(get_oauth_service),
     user_repository: IUserRepository = Depends(get_user_repository)
 ) -> IAuthService:
     """
     Obtiene el servicio de autenticación con todas sus dependencias.
+    NOTA: No recibe `db` porque AuthService delega toda la
+    persistencia en user_repository (Principio de Inversión de Dependencias).
     """
-    return AuthService(db, token_service, oauth_service, user_repository)
+    return AuthService(token_service, oauth_service, user_repository)
 
 
 def get_user_service(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_repository: IUserRepository = Depends(get_user_repository)
 ) -> IUserService:
     """
@@ -66,18 +67,17 @@ def get_user_service(
 
 
 def get_company_profile_repository(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> ICompanyProfileRepository:
     """Obtiene el repositorio de perfiles de empresa."""
     return CompanyProfileRepository(db)
 
 
 def get_company_profile_service(
-    db: Session = Depends(get_db),
     company_repository: ICompanyProfileRepository = Depends(get_company_profile_repository),
 ) -> CompanyProfileService:
     """Obtiene el servicio de perfiles de empresa."""
-    return CompanyProfileService(db, company_repository)
+    return CompanyProfileService(company_repository)
 
 
 # Dependencias de seguridad existentes (mantenidas para compatibilidad)

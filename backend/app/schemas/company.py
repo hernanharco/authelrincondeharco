@@ -17,6 +17,7 @@ class CompanyProfileResponse(BaseModel):
     cif: Optional[str] = None
     address: Optional[str] = None
     iban: Optional[str] = None
+    email: Optional[str] = None
     phone: Optional[str] = None
     contact_name: Optional[str] = None
     created_at: datetime
@@ -32,6 +33,7 @@ class CompanyProfileCreate(BaseModel):
     cif: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
     iban: Optional[str] = Field(None, max_length=34)
+    email: Optional[str] = Field(None, max_length=255)
     phone: Optional[str] = Field(None, max_length=20)
     contact_name: Optional[str] = Field(None, max_length=255)
 
@@ -45,5 +47,7 @@ class CompanyProfileUpdate(BaseModel):
     cif: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
     iban: Optional[str] = Field(None, max_length=34)
+    email: Optional[str] = Field(None, max_length=255)
     phone: Optional[str] = Field(None, max_length=20)
     contact_name: Optional[str] = Field(None, max_length=255)
+

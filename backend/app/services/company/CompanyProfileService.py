@@ -8,18 +8,21 @@ Reglas:
 - Los datos son maestros: otros proyectos los consumen vía API
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
 from app.models.user import User
 from app.interfaces.company.ICompanyProfileRepository import ICompanyProfileRepository
 from app.schemas.company import CompanyProfileCreate, CompanyProfileUpdate
 
 
 class CompanyProfileService:
+    """
+    Servicio de Perfil de Empresa.
+    NOTA: NO recibe `db` porque toda la persistencia se maneja
+    a través de `company_repository` (Principio de Inversión de Dependencias).
+    """
 
-    def __init__(self, db: Session, company_repository: ICompanyProfileRepository):
-        self.db = db
+    def __init__(self, company_repository: ICompanyProfileRepository):
         self.company_repository = company_repository
 
     async def get_profile(self, user_id: int, current_user: User) -> Dict[str, Any]:
@@ -97,6 +100,23 @@ class CompanyProfileService:
         return await self.company_repository.create(
             user_id, create_data.model_dump(exclude_unset=True)
         )
+
+    async def get_public_profile(self, user_id: int) -> Dict[str, Any]:
+        """Obtiene perfil de empresa SIN autenticación — para landing pages públicas."""
+        profile = await self.company_repository.get_by_user_id(user_id)
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Perfil de empresa no encontrado",
+            )
+        return profile
+
+    async def get_all_profiles(
+        self, current_user: User
+    ) -> List[Dict[str, Any]]:
+        """Obtiene todos los perfiles de empresa. Solo admin."""
+        self._validate_admin_permission(current_user, "listar perfiles de empresa")
+        return await self.company_repository.get_all()
 
     # --- Validaciones de permisos ---
 

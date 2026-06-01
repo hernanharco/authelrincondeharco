@@ -3,7 +3,7 @@ Interface de Repositorio de Perfiles de Empresa.
 Define el contrato para operaciones de base de datos de CompanyProfile.
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from app.models.company_profile import CompanyProfile
 
 
@@ -36,4 +36,9 @@ class ICompanyProfileRepository(ABC):
     @abstractmethod
     async def exists(self, user_id: int) -> bool:
         """Verifica si un usuario ya tiene perfil de empresa."""
+        pass
+
+    @abstractmethod
+    async def get_all(self) -> List[Dict[str, Any]]:
+        """Obtiene todos los perfiles de empresa con datos del usuario."""
         pass

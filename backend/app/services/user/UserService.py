@@ -5,7 +5,7 @@ Refactorizado para seguir SRP usando servicios especializados.
 
 from typing import List, Optional, Dict, Any
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.types.enums import UserRole, UserStatus
 from app.interfaces.user.IUserService import IUserService
@@ -22,7 +22,7 @@ class UserService(IUserService):
     Patrón Facade: proporciona una interfaz unificada para el subsistema de usuarios.
     """
 
-    def __init__(self, db: Session, user_repository: IUserRepository):
+    def __init__(self, db: AsyncSession, user_repository: IUserRepository):
         self.db = db
         self.user_repository = user_repository
 
@@ -159,65 +159,6 @@ class UserService(IUserService):
         Actualiza las notas de un usuario.
         """
         return await self.update_service.update_user_notes(user_id, notes, current_user)
-
-    # Métodos de compatibilidad para los endpoints existentes
-    async def get_all(
-        self,
-        skip: int = 0,
-        limit: int = 100,
-        search: Optional[str] = None,
-        role: Optional[UserRole] = None,
-        current_user: User = None,
-    ) -> List[User]:
-        """Método de compatibilidad para get_users."""
-        return await self.get_users(skip, limit, search, role, current_user)
-
-    async def get_by_id(self, user_id: int, current_user: User) -> User:
-        """Método de compatibilidad para get_user_by_id."""
-        return await self.get_user_by_id(user_id, current_user)
-
-    async def create(self, user_data: Dict[str, Any], current_user: User) -> User:
-        """Método de compatibilidad para create_user."""
-        return await self.create_user(user_data, current_user)
-
-    async def update(
-        self, user_id: int, update_data: Dict[str, Any], current_user: User
-    ) -> User:
-        """Método de compatibilidad para update_user."""
-        return await self.update_user(user_id, update_data, current_user)
-
-    async def delete(self, user_id: int, current_user: User) -> User:
-        """Método de compatibilidad para delete_user."""
-        await self.delete_user(user_id, current_user)
-        return await self.user_repository.get_by_id(user_id)
-
-    async def update_role(
-        self, user_id: int, new_role: UserRole, current_user: User
-    ) -> User:
-        """Método de compatibilidad para update_user_role."""
-        return await self.update_user_role(user_id, new_role, current_user)
-
-    async def get_pending(self) -> List[User]:
-        """Método de compatibilidad para get_pending_users."""
-        return await self.user_repository.get_pending_users()
-
-    # --- Más métodos de compatibilidad ---
-
-    async def update_status(
-        self, user_id: int, new_status: UserStatus, current_user: User
-    ) -> User:
-        """Método de compatibilidad para update_user_status."""
-        return await self.update_user_status(user_id, new_status, current_user)
-
-    async def update_lock(
-        self, user_id: int, is_locked: bool, current_user: User
-    ) -> User:
-        """Método de compatibilidad para update_user_lock."""
-        return await self.update_user_lock(user_id, is_locked, current_user)
-
-    async def update_notes(self, user_id: int, notes: str, current_user: User) -> User:
-        """Método de compatibilidad para update_user_notes."""
-        return await self.update_user_notes(user_id, notes, current_user)
 
     # --- Métodos adicionales que delegan a servicios especializados ---
 

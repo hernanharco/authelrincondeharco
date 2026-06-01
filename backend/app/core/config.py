@@ -61,8 +61,13 @@ class Settings(BaseSettings):
 
     # --- JWT Settings ---
     access_token_expire_minutes: int = Field(30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
-    algorithm: str = Field("HS256", alias="ALGORITHM")
+    algorithm: str = Field("RS256", alias="ALGORITHM")
     API_V1_STR: str = "/api/v1"
+
+    # --- Claves RSA para RS256 ---
+    # Si no se proveen, se auto-generan en app/core/crypto.py
+    rsa_private_key: Optional[str] = Field(None, alias="RSA_PRIVATE_KEY")
+    rsa_public_key: Optional[str] = Field(None, alias="RSA_PUBLIC_KEY")
 
     # --- Google OAuth ---
     google_client_id: str = Field("", alias="GOOGLE_CLIENT_ID")

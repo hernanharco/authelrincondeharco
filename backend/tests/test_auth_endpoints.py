@@ -1,6 +1,7 @@
 """
-Tests para endpoints de autenticación
-Cubren login tradicional, Google OAuth y gestión de tokens
+Tests para endpoints de autenticación.
+Cubren login tradicional, Google OAuth y gestión de tokens.
+Async: usa httpx.AsyncClient + SQLAlchemy async.
 """
 import pytest
 from datetime import timedelta
@@ -10,17 +11,19 @@ from app.core.security import create_access_token, get_password_hash
 from app.schemas.auth import LoginRequest
 from app.models.user import User, UserRole, UserStatus
 
+pytestmark = pytest.mark.asyncio
+
+
 class TestAuthEndpoints:
     """Tests para endpoints de autenticación"""
 
-    def test_login_success(self, client, db_session, test_user):
+    async def test_login_success(self, client, db_session, test_user):
         """Test login exitoso con credenciales válidas"""
-        # El usuario ya tiene el hash de "testpass" gracias a la fixture
         db_session.add(test_user)
-        db_session.commit()
+        await db_session.commit()
 
         login_data = LoginRequest(username="testuser", password="testpass")
-        response = client.post("/api/v1/auth/login", json=login_data.model_dump())
+        response = await client.post("/api/v1/auth/login", json=login_data.model_dump())
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -28,58 +31,58 @@ class TestAuthEndpoints:
         assert data["token_type"] == "bearer"
         assert data["user"]["username"] == "testuser"
 
-    def test_login_invalid_credentials(self, client, db_session, test_user):
+    async def test_login_invalid_credentials(self, client, db_session, test_user):
         """Test login con credenciales inválidas"""
         db_session.add(test_user)
-        db_session.commit()
+        await db_session.commit()
 
         login_data = LoginRequest(username="testuser", password="wrongpass")
-        response = client.post("/api/v1/auth/login", json=login_data.model_dump())
+        response = await client.post("/api/v1/auth/login", json=login_data.model_dump())
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.json()["detail"] == "Credenciales incorrectas"
 
-    def test_login_user_not_found(self, client):
+    async def test_login_user_not_found(self, client):
         """Test login con usuario que no existe"""
         login_data = LoginRequest(username="nonexistent", password="anypass")
-        response = client.post("/api/v1/auth/login", json=login_data.model_dump())
+        response = await client.post("/api/v1/auth/login", json=login_data.model_dump())
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_google_oauth_redirect(self, client):
+    async def test_google_oauth_redirect(self, client):
         """Test que Google OAuth redirige correctamente"""
-        response = client.get("/api/v1/auth/google", follow_redirects=False)
+        response = await client.get("/api/v1/auth/google", follow_redirects=False)
 
         assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
         assert "accounts.google.com" in response.headers["location"]
 
     @pytest.mark.skip(reason="GoogleCallback requiere refactor de process_google_login (issue #8)")
-    def test_google_callback_success(self, client, db_session, mock_google_oauth):
+    async def test_google_callback_success(self, client, db_session, mock_google_oauth):
         """Test callback de Google OAuth exitoso"""
-        response = client.get(
+        response = await client.get(
             "/api/v1/auth/callback?code=test_code&state=test_state"
         )
 
         assert response.status_code == status.HTTP_200_OK
         assert "window.opener.postMessage" in response.text
 
-    def test_protected_endpoint_without_token(self, client):
+    async def test_protected_endpoint_without_token(self, client):
         """Test acceso a endpoint protegido sin token"""
-        response = client.get("/api/v1/users/me")
+        response = await client.get("/api/v1/users/me")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_protected_endpoint_with_expired_token(self, client, db_session, test_user):
+    async def test_protected_endpoint_with_expired_token(self, client, db_session, test_user):
         """Test acceso con token expirado"""
         db_session.add(test_user)
-        db_session.commit()
-        
+        await db_session.commit()
+
         # Creamos un token con tiempo en el pasado
         expired_token = create_access_token(
             subject=str(test_user.id),
             expires_delta=timedelta(hours=-1)
         )
         headers = {"Authorization": f"Bearer {expired_token}"}
-        response = client.get("/api/v1/users/me", headers=headers)
+        response = await client.get("/api/v1/users/me", headers=headers)
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 

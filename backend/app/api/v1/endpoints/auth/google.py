@@ -74,11 +74,11 @@ async def google_callback(
 
         # Login exitoso — setear cookie y redirigir al frontend
         is_prod = settings.is_production
-        cookie_domain = ".elrincondeharco.com" if is_prod else None
         frontend_url = _get_frontend_redirect(state)
 
+        # Siempre seteamos la cookie (para el propio frontend de authCore y por si acaso)
+        cookie_domain = ".elrincondeharco.com" if is_prod else "localhost"
         response = RedirectResponse(url=frontend_url)
-
         response.set_cookie(
             key="access_token",
             value=internal_token,
@@ -89,6 +89,35 @@ async def google_callback(
             secure=is_prod,
             domain=cookie_domain,
         )
+
+        # Si el redirect_to apunta a un origen diferente al de authCore
+        # (ej: Portfolio en localhost:4322), NO podemos confiar en que la cookie
+        # se comparta entre puertos, o que Astro maneje bien los query params.
+        # Pasamos el token en el PATH de la URL (ej: /api/auth/callback/{token})
+        # El frontend receptor debe leerlo, validarlo y setear su propia cookie.
+        if not frontend_url.startswith(FRONTEND_URL):
+            # Reemplazar /api/auth/callback por /api/auth/callback/{token}
+            if "/api/auth/callback" in frontend_url:
+                token_path = frontend_url.replace("/api/auth/callback", f"/api/auth/callback/{internal_token}")
+            else:
+                # Fallback: agregar token como query param (poco probable que se use)
+                from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
+                parsed = list(urlparse(frontend_url))
+                query = parse_qs(parsed[4])
+                query["token"] = internal_token
+                parsed[4] = urlencode(query, doseq=True)
+                token_path = urlunparse(parsed)
+            response = RedirectResponse(url=token_path)
+            response.set_cookie(
+                key="access_token",
+                value=internal_token,
+                httponly=True,
+                max_age=expires_in,
+                path="/",
+                samesite="none" if is_prod else "lax",
+                secure=is_prod,
+                domain=cookie_domain,
+            )
 
         logging.info(f"✅ Login Google exitoso para: {user.email}")
         return response

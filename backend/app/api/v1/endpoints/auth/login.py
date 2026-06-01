@@ -1,18 +1,23 @@
 """
 Endpoint de Login - Principio de Responsabilidad Única
+Protegido con rate limiting para prevenir ataques de fuerza bruta.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from app.schemas.user import UserLoginResponse
 from app.schemas.auth import LoginRequest
 from app.interfaces.auth.IAuthService import IAuthService
 from app.api.v1.dependencies import get_auth_service
+from app.core.ratelimit import limiter, LIMIT_LOGIN
 
 router = APIRouter()
 
 @router.post("/login", response_model=UserLoginResponse)
+@limiter.limit(LIMIT_LOGIN)
 async def login(
-    credentials: LoginRequest, auth_service: IAuthService = Depends(get_auth_service)
+    request: Request,
+    credentials: LoginRequest,
+    auth_service: IAuthService = Depends(get_auth_service),
 ):
     """
     Endpoint de login tradicional.

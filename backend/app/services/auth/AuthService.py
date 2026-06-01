@@ -1,12 +1,12 @@
 """
 backend/app/services/auth/AuthService.py
 Servicio de Autenticación - Principio de Responsabilidad Única
+Incluye protección contra fuerza bruta: lockout tras N intentos fallidos.
 """
 
 from typing import Optional, Tuple
 from datetime import datetime, timezone
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
 from app.models.user import User
 from app.core.security import verify_password
 from app.interfaces.auth.IAuthService import IAuthService
@@ -15,22 +15,37 @@ from app.interfaces.auth.IOAuthService import IOAuthService
 from app.interfaces.user.IUserRepository import IUserRepository
 from app.types.enums import UserRole, UserStatus
 
+# ── Protección contra fuerza bruta ─────────────────────────────
+# Cantidad de intentos fallidos antes de bloquear la cuenta.
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+
 
 class AuthService(IAuthService):
+    """
+    Servicio de autenticación.
+    NOTA: NO recibe `db: Session` — toda la persistencia se maneja
+    a través de `user_repository` (Principio de Inversión de Dependencias).
+    """
 
     def __init__(
         self,
-        db: Session,
         token_service: ITokenService,
         oauth_service: IOAuthService,
         user_repository: IUserRepository,
     ):
-        self.db = db
         self.token_service = token_service
         self.oauth_service = oauth_service
         self.user_repository = user_repository
 
     async def authenticate_user(self, username: str, password: str) -> Optional[User]:
+        """
+        Autentica un usuario con credenciales tradicionales.
+
+        Incluye protección contra fuerza bruta:
+        - Incrementa failed_login_attempts en cada fallo
+        - Bloquea la cuenta al superar MAX_FAILED_LOGIN_ATTEMPTS
+        - Resetea el contador al iniciar sesión exitosamente
+        """
         user = await self.user_repository.get_by_username(username)
         if not user:
             user = await self.user_repository.get_by_email(username)
@@ -38,10 +53,32 @@ class AuthService(IAuthService):
         if not user:
             return None
 
-        if not verify_password(password, user.password_hash):
+        # ── Cuenta bloqueada por intentos fallidos ─────────────
+        if user.is_locked:
             return None
 
-        if not user.is_active or user.is_locked:
+        # ── Verificar contraseña ───────────────────────────────
+        if not verify_password(password, user.password_hash):
+            new_attempts = (user.failed_login_attempts or 0) + 1
+            update_data: dict[str, object] = {
+                "failed_login_attempts": new_attempts,
+            }
+
+            # Bloquear si superó el límite
+            if new_attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
+                update_data["is_locked"] = True
+
+            await self.user_repository.update(user.id, update_data)
+            return None
+
+        # ── Login exitoso: resetear contador y desbloquear ────
+        if user.failed_login_attempts > 0 or user.is_locked:
+            await self.user_repository.update(user.id, {
+                "failed_login_attempts": 0,
+                "is_locked": False,
+            })
+
+        if not user.is_active:
             return None
 
         return user
@@ -114,13 +151,26 @@ class AuthService(IAuthService):
             )
 
     async def create_access_token(self, user: User) -> Tuple[str, int]:
-        token_data = {
+        token_data: dict[str, object] = {
             "sub": str(user.id),
             "username": user.username,
             "email": user.email,
             "role": user.role.value,
             "type": "access",
         }
+
+        # ── Datos no sensibles de empresa ──────────────────────────────────
+        # Se incluyen en el JWT para que los sitios clientes puedan mostrar
+        # el nombre de la empresa sin tener que llamar a la API.
+        # NOTA: NO incluimos CIF, IBAN, address, phone — son datos sensibles.
+        # NOTA 2: No usar user.company_profile directamente — en modo async
+        # SQLAlchemy NO soporta lazy loading. Usamos __dict__ para evitar
+        # disparar una query sync que lanzaría MissingGreenlet.
+        # ──────────────────────────────────────────────────────────────────
+        company_profile = user.__dict__.get("company_profile")
+        if company_profile is not None:
+            token_data["company_name"] = company_profile.company_name
+
         token, expires_at = await self.token_service.create_access_token(token_data)
         expires_in = int((expires_at - datetime.now(timezone.utc)).total_seconds())
         return token, expires_in
