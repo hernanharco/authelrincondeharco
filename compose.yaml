@@ -60,7 +60,7 @@ services:
       APP_DOMAIN: localhost
       FRONTEND_ORIGIN: "http://localhost:4321"
       BACKEND_URL: "http://localhost:8000"
-      CORS_ORIGINS: '["http://localhost:4321", "http://localhost:4322"]'
+      CORS_ORIGINS: '["http://localhost:4321", "http://localhost:4322", "http://localhost:5173", "http://127.0.0.1:5173"]'
       CLOUDINARY_CLOUD_NAME: ""
       CLOUDINARY_API_KEY: ""
       CLOUDINARY_API_SECRET: ""
