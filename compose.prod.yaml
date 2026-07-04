@@ -1,0 +1,118 @@
+# ============================================================
+# compose.prod.yaml — authCore (producción en Hetzner)
+# ============================================================
+# Uso: docker compose -f compose.prod.yaml up -d --build
+# ============================================================
+# authCore es el HUB central de autenticación.
+# Maneja login, Google OAuth, JWT RS256, usuarios y tenants.
+# Los spokes (CafeMiTierra, Tapicería, etc.) verifican JWTs
+# contra /.well-known/jwks.json de este servicio.
+# ============================================================
+
+services:
+  # ── Base de datos ────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5438:5432"
+    environment:
+      POSTGRES_DB: authcore
+      POSTGRES_USER: authcore
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authcore"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # ── Backend FastAPI ─────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Entorno
+      ENVIRONMENT: production
+      DEBUG: "false"
+      APP_DOMAIN: ${APP_DOMAIN:-api-authcore.elrincondeharco.com}
+      TITLE_BACKEND: authCore-Backend
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      # JWT
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: RS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+
+      # Base de Datos
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: authcore
+      PGUSER: authcore
+      PGPASSWORD: ${DB_PASSWORD}
+      PGSCHEMA: ${PGSCHEMA:-authharco}
+      PGSSLMODE: disable
+      PGCHANNELBINDING: disable
+
+      # Google OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+
+      # CORS — incluir todos los spokes + frontend de authCore
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-https://authcore.vercel.app}
+      BACKEND_URL: ${BACKEND_URL:-https://api-authcore.elrincondeharco.com}
+
+      # Cloudinary (opcional)
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # ── Frontend Astro ──────────────────────────────────────────
+  # NOTA: El frontend se deploya a Vercel.
+  # Este servicio es solo para desarrollo/preview.
+  # En producción, Vercel maneja el frontend y apunta a
+  # api-authcore.elrincondeharco.com para el backend.
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        PUBLIC_BACKEND_URL: ${BACKEND_URL:-https://api-authcore.elrincondeharco.com}
+    restart: unless-stopped
+    ports:
+      - "4321:4321"
+    environment:
+      PUBLIC_BACKEND_URL: ${BACKEND_URL:-https://api-authcore.elrincondeharco.com}
+      API_TARGET: http://api:8000
+      HOST: 0.0.0.0
+      PORT: "4321"
+      NODE_ENV: production
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+volumes:
+  pgdata:

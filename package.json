@@ -1,0 +1,7 @@
+{
+  "name": "authcore",
+  "private": true,
+  "scripts": {
+    "deploy": "bash scripts/deploy.sh"
+  }
+}
