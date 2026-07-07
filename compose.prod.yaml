@@ -15,7 +15,7 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     ports:
-      - "5438:5432"
+      - "127.0.0.1:5438:5432"
     environment:
       POSTGRES_DB: authcore
       POSTGRES_USER: authcore
@@ -40,7 +40,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       # Entorno
       ENVIRONMENT: production
@@ -99,7 +99,7 @@ services:
         PUBLIC_BACKEND_URL: ${BACKEND_URL:-https://api-authcore.elrincondeharco.com}
     restart: unless-stopped
     ports:
-      - "4321:4321"
+      - "127.0.0.1:4321:4321"
     environment:
       PUBLIC_BACKEND_URL: ${BACKEND_URL:-https://api-authcore.elrincondeharco.com}
       API_TARGET: http://api:8000
