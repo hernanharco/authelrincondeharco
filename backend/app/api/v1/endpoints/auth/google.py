@@ -76,8 +76,10 @@ async def google_callback(
         is_prod = settings.is_production
         frontend_url = _get_frontend_redirect(state)
 
-        # Siempre seteamos la cookie (para el propio frontend de authCore y por si acaso)
-        cookie_domain = ".elrincondeharco.com" if is_prod else "localhost"
+        # El dominio de la cookie se deriva del FRONTEND_URL actual
+        # (ej: auth.rincom.es -> .rincom.es, auth.elrincondeharco.com -> .elrincondeharco.com)
+        frontend_host = urlparse(FRONTEND_URL).hostname or "localhost"
+        cookie_domain = f".{frontend_host.split('.', 1)[1]}" if is_prod else "localhost"
         response = RedirectResponse(url=frontend_url)
         response.set_cookie(
             key="access_token",
