@@ -1,7 +1,7 @@
 # app/api/v1/endpoints/auth/google.py
 import json
 import logging
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
@@ -101,7 +101,6 @@ async def google_callback(
                 token_path = frontend_url.replace("/api/auth/callback", f"/api/auth/callback/{internal_token}")
             else:
                 # Fallback: agregar token como query param (poco probable que se use)
-                from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
                 parsed = list(urlparse(frontend_url))
                 query = parse_qs(parsed[4])
                 query["token"] = internal_token
