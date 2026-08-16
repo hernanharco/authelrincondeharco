@@ -54,7 +54,7 @@ services:
       PGSCHEMA: authharco
       SECRET_KEY: dev-secret-key-no-usar-en-produccion
       ALGORITHM: RS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "120"
       ENVIRONMENT: development
       DEBUG: "true"
       APP_DOMAIN: localhost

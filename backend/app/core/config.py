@@ -60,7 +60,7 @@ class Settings(BaseSettings):
         )
 
     # --- JWT Settings ---
-    access_token_expire_minutes: int = Field(30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    access_token_expire_minutes: int = Field(120, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     algorithm: str = Field("RS256", alias="ALGORITHM")
     API_V1_STR: str = "/api/v1"
 

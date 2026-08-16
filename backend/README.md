@@ -71,7 +71,7 @@ DATABASE_URL=postgresql://user:password@localhost/dbname
 # JWT
 SECRET_KEY=tu-secret-key-aqui
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+ACCESS_TOKEN_EXPIRE_MINUTES=120
 
 # OAuth Google
 GOOGLE_CLIENT_ID=tu-google-client-id
