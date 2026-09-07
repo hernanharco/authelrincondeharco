@@ -1,0 +1,182 @@
+---
+export const prerender = false;
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { apiUrl, ENDPOINTS } from '../../../config/api.config';
+
+const token = Astro.cookies.get('access_token')?.value;
+if (!token) {
+	return Astro.redirect('/login');
+}
+
+const slug = Astro.params.slug;
+if (!slug) {
+	return Astro.redirect('/dashboard/tenants');
+}
+
+let tenant: any = null;
+let tenantModules: any[] = [];
+let allModules: any[] = [];
+let error = '';
+
+try {
+	// 1. Obtener tenant por slug
+	const tenantRes = await fetch(apiUrl(ENDPOINTS.tenants.bySlug(slug)), {
+		headers: { Authorization: `Bearer ${token}` },
+	});
+
+	if (tenantRes.status === 401) return Astro.redirect('/login');
+	if (!tenantRes.ok) {
+		error = `Tenant "${slug}" no encontrado`;
+	} else {
+		tenant = await tenantRes.json();
+
+		// 2. Obtener módulos asignados al tenant
+		const [assignedRes, allRes] = await Promise.all([
+			fetch(apiUrl(ENDPOINTS.tenants.modules(tenant.id)), {
+				headers: { Authorization: `Bearer ${token}` },
+			}),
+			fetch(apiUrl(ENDPOINTS.modules.list), {
+				headers: { Authorization: `Bearer ${token}` },
+			}),
+		]);
+
+		if (assignedRes.ok) tenantModules = await assignedRes.json();
+		if (allRes.ok) allModules = await allRes.json();
+	}
+} catch (e) {
+	error = 'Error al cargar datos del tenant';
+	console.error(e);
+}
+
+// Módulos no asignados (para el selector de agregar)
+const assignedIds = new Set(tenantModules.map((tm: any) => tm.module_id));
+const unassignedModules = allModules.filter((m: any) => !assignedIds.has(m.id));
+---
+
+<DashboardLayout title={tenant ? `Tenant: ${tenant.name}` : 'Tenant'}>
+	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="space-y-6">
+			{/* Error state */}
+			{error && (
+				<div class="bg-[#1E2130] border border-[#EF4444]/30 rounded-lg p-6">
+					<p class="text-[#EF4444]">{error}</p>
+					<a href="/dashboard/tenants" class="text-[#6366F1] hover:underline mt-2 inline-block">
+						← Volver a Tenants
+					</a>
+				</div>
+			)}
+
+			{tenant && (
+				<>
+					{/* Header */}
+					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-4">
+								<div class="w-12 h-12 bg-[#6366F1]/20 rounded-xl flex items-center justify-center text-[#6366F1] font-bold text-xl">
+									{tenant.name.charAt(0).toUpperCase()}
+								</div>
+								<div>
+									<h2 class="text-xl font-semibold text-[#F9FAFB]">{tenant.name}</h2>
+									<code class="text-xs bg-[#2D3148] px-2 py-1 rounded text-[#9CA3AF]">{tenant.slug}</code>
+									<span class="ml-3">
+										{tenant.is_active ? (
+											<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#10B981]/10 text-[#10B981]">Activo</span>
+										) : (
+											<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#6B7280]/10 text-[#6B7280]">Inactivo</span>
+										)}
+									</span>
+								</div>
+							</div>
+							<a href="/dashboard/tenants" class="text-[#9CA3AF] hover:text-[#F9FAFB] text-sm">
+								← Volver
+							</a>
+						</div>
+					</div>
+
+					{/* Módulos asignados */}
+					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+						<div class="flex items-center justify-between mb-4">
+							<h3 class="text-lg font-semibold text-[#F9FAFB]">Módulos Asignados</h3>
+							<span class="text-sm text-[#6B7280]">
+								{tenantModules.length} de {allModules.length}
+							</span>
+						</div>
+
+						{tenantModules.length > 0 ? (
+							<div class="space-y-3">
+								{tenantModules.map((tm: any) => (
+									<div class="flex items-center justify-between bg-[#2D3148]/50 rounded-lg p-4">
+										<div class="flex items-center gap-3">
+											<div class={`w-3 h-3 rounded-full ${tm.is_active ? 'bg-[#10B981]' : 'bg-[#6B7280]'}`}></div>
+											<div>
+												<div class="text-sm font-medium text-[#F9FAFB]">{tm.module_id}</div>
+												{tm.settings && (
+													<div class="text-xs text-[#9CA3AF] mt-1">
+														{Object.entries(tm.settings).map(([key, val]) => (
+															<span class="inline-block bg-[#1A1D27] px-2 py-0.5 rounded mr-2 mb-1">
+																{key}: {Array.isArray(val) ? val.join(', ') : String(val)}
+															</span>
+														))}
+													</div>
+												)}
+											</div>
+										</div>
+										<div class="flex items-center gap-2">
+											<span class={`text-xs px-2 py-1 rounded ${tm.is_active ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#6B7280]/10 text-[#6B7280]'}`}>
+												{tm.is_active ? 'Activo' : 'Inactivo'}
+											</span>
+										</div>
+									</div>
+								))}
+							</div>
+						) : (
+							<div class="text-center py-8">
+								<p class="text-[#6B7280]">Este tenant no tiene módulos asignados.</p>
+								{unassignedModules.length > 0 && (
+									<p class="text-[#9CA3AF] text-sm mt-2">
+										Módulos disponibles para asignar: {unassignedModules.map((m: any) => m.id).join(', ')}
+									</p>
+								)}
+							</div>
+						)}
+					</div>
+
+					{/* Info del tenant */}
+					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+						<h3 class="text-lg font-semibold text-[#F9FAFB] mb-4">Información</h3>
+						<dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+							<div>
+								<dt class="text-xs text-[#6B7280] uppercase">ID</dt>
+								<dd class="text-sm text-[#F9FAFB] font-mono mt-1">{tenant.id}</dd>
+							</div>
+							<div>
+								<dt class="text-xs text-[#6B7280] uppercase">Slug</dt>
+								<dd class="text-sm text-[#F9FAFB] mt-1">{tenant.slug}</dd>
+							</div>
+							<div>
+								<dt class="text-xs text-[#6B7280] uppercase">Nombre</dt>
+								<dd class="text-sm text-[#F9FAFB] mt-1">{tenant.name}</dd>
+							</div>
+							<div>
+								<dt class="text-xs text-[#6B7280] uppercase">Estado</dt>
+								<dd class="text-sm mt-1">{tenant.is_active ? '✅ Activo' : '❌ Inactivo'}</dd>
+							</div>
+							<div>
+								<dt class="text-xs text-[#6B7280] uppercase">Creado</dt>
+								<dd class="text-sm text-[#F9FAFB] mt-1">
+									{new Date(tenant.created_at).toLocaleString('es-ES')}
+								</dd>
+							</div>
+							<div>
+								<dt class="text-xs text-[#6B7280] uppercase">Última actualización</dt>
+								<dd class="text-sm text-[#F9FAFB] mt-1">
+									{tenant.updated_at ? new Date(tenant.updated_at).toLocaleString('es-ES') : '—'}
+								</dd>
+							</div>
+						</dl>
+					</div>
+				</>
+			)}
+		</div>
+	</main>
+</DashboardLayout>

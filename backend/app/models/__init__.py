@@ -5,5 +5,8 @@ todas las tablas se creen correctamente.
 """
 from app.models.user import User
 from app.models.company_profile import CompanyProfile
+from app.models.tenant import Tenant
+from app.models.module import Module
+from app.models.tenant_module import TenantModule
 
-__all__ = ["User", "CompanyProfile"]
+__all__ = ["User", "CompanyProfile", "Tenant", "Module", "TenantModule"]

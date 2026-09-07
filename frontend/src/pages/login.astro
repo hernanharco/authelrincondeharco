@@ -16,6 +16,9 @@ const status = Astro.url.searchParams.get("status");
 const error = Astro.url.searchParams.get("error");
 const isPending = status === "pending";
 
+// Detectar modo desarrollo
+const isDev = import.meta.env.DEV || process.env.NODE_ENV !== 'production';
+
 // 2. GUARDIA DE ENTRADA
 const sessionCookie = Astro.cookies.get("access_token");
 
@@ -81,6 +84,63 @@ if (sessionCookie?.value) {
               </div>
 
               <GoogleButton client:load {redirectParam} />
+
+              {/* ── Dev Login Button (solo en desarrollo) ─────────── */}
+              {isDev && (
+                <div class="relative my-6">
+                  <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-[#F59E0B]/30"></div>
+                  </div>
+                  <div class="relative flex justify-center text-sm">
+                    <span class="px-3 bg-[#1E2130] text-[#F59E0B]">🔧 Modo Desarrollo</span>
+                  </div>
+                </div>
+              )}
+
+              {isDev && (
+                <button
+                  id="dev-login-btn"
+                  type="button"
+                  class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-xl text-[#F59E0B] font-medium hover:bg-[#F59E0B]/20 transition-all cursor-pointer"
+                >
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Acceso Rápido (Dev)
+                </button>
+              )}
+
+              {isDev && (
+                <script>
+                  document.getElementById('dev-login-btn')?.addEventListener('click', async () => {
+                    const btn = document.getElementById('dev-login-btn') as HTMLButtonElement;
+                    btn.disabled = true;
+                    btn.innerHTML = '<svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Conectando...';
+                    
+                    try {
+                      const backendUrl = import.meta.env.PUBLIC_BACKEND_URL || 'http://localhost:8000';
+                      const res = await fetch(`${backendUrl}/api/v1/auth/dev-login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                      });
+                      
+                      if (!res.ok) throw new Error('Dev login failed');
+                      
+                      const data = await res.json();
+                      
+                      // Guardar token en cookie
+                      document.cookie = `access_token=${data.access_token}; path=/; max-age=${data.expires_in}; samesite=lax`;
+                      
+                      // Redirigir al dashboard
+                      window.location.href = '/dashboard';
+                    } catch (err) {
+                      btn.disabled = false;
+                      btn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> Acceso Rápido (Dev)';
+                      alert('Error: ' + err);
+                    }
+                  });
+                </script>
+              )}
             </div>
           </div>
         )}

@@ -41,6 +41,21 @@ export const ENDPOINTS = {
     upsert: (userId: number | string) => `/api/v1/company/${userId}/upsert`,
     delete: (userId: number | string) => `/api/v1/company/${userId}`,
   },
+  tenants: {
+    list: '/api/v1/tenants/',
+    byId: (id: string) => `/api/v1/tenants/${id}`,
+    bySlug: (slug: string) => `/api/v1/tenants/by-slug/${slug}`,
+    modules: (tenantId: string) => `/api/v1/tenant-modules/tenants/${tenantId}/modules`,
+    assignModule: (tenantId: string) => `/api/v1/tenant-modules/tenants/${tenantId}/modules`,
+    updateModule: (tenantId: string, moduleId: string) =>
+      `/api/v1/tenant-modules/tenants/${tenantId}/modules/${moduleId}`,
+    removeModule: (tenantId: string, moduleId: string) =>
+      `/api/v1/tenant-modules/tenants/${tenantId}/modules/${moduleId}`,
+  },
+  modules: {
+    list: '/api/v1/modules/',
+    byId: (id: string) => `/api/v1/modules/${id}`,
+  },
 };
 
 export const apiUrl = (path: string) => `${BACKEND_URL}${path}`;

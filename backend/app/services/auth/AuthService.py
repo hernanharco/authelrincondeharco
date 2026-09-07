@@ -13,6 +13,8 @@ from app.interfaces.auth.IAuthService import IAuthService
 from app.interfaces.auth.ITokenService import ITokenService
 from app.interfaces.auth.IOAuthService import IOAuthService
 from app.interfaces.user.IUserRepository import IUserRepository
+from app.interfaces.tenant.ITenantRepository import ITenantRepository
+from app.services.tenant.TenantModuleService import TenantModuleService
 from app.types.enums import UserRole, UserStatus
 
 # ── Protección contra fuerza bruta ─────────────────────────────
@@ -32,10 +34,14 @@ class AuthService(IAuthService):
         token_service: ITokenService,
         oauth_service: IOAuthService,
         user_repository: IUserRepository,
+        tenant_repository: ITenantRepository = None,
+        tenant_module_service: TenantModuleService = None,
     ):
         self.token_service = token_service
         self.oauth_service = oauth_service
         self.user_repository = user_repository
+        self.tenant_repository = tenant_repository
+        self.tenant_module_service = tenant_module_service
 
     async def authenticate_user(self, username: str, password: str) -> Optional[User]:
         """
@@ -159,14 +165,26 @@ class AuthService(IAuthService):
             "type": "access",
         }
 
-        # ── Datos no sensibles de empresa ──────────────────────────────────
-        # Se incluyen en el JWT para que los sitios clientes puedan mostrar
-        # el nombre de la empresa sin tener que llamar a la API.
-        # NOTA: NO incluimos CIF, IBAN, address, phone — son datos sensibles.
-        # NOTA 2: No usar user.company_profile directamente — en modo async
-        # SQLAlchemy NO soporta lazy loading. Usamos __dict__ para evitar
-        # disparar una query sync que lanzaría MissingGreenlet.
+        # ── Tenant + Modules (Feature Flags) ──────────────────────────────
+        # Si el usuario tiene un tenant asignado, incluimos la info del tenant
+        # y sus módulos activos en el JWT. Así los servicios downstream pueden
+        # saber qué puede hacer cada usuario sin llamar a authCore.
         # ──────────────────────────────────────────────────────────────────
+        tenant_id = getattr(user, "tenant_id", None)
+        if tenant_id and self.tenant_repository and self.tenant_module_service:
+            tenant = await self.tenant_repository.get_by_id(tenant_id)
+            if tenant:
+                token_data["tenant"] = {
+                    "id": tenant.id,
+                    "slug": tenant.slug,
+                    "name": tenant.name,
+                }
+                # Construir dict de módulos activos con settings
+                modules_dict = await self.tenant_module_service.get_modules_dict_for_jwt(tenant_id)
+                if modules_dict:
+                    token_data["modules"] = modules_dict
+
+        # ── Datos no sensibles de empresa (legacy, se mantiene por compat) ─
         company_profile = user.__dict__.get("company_profile")
         if company_profile is not None:
             token_data["company_name"] = company_profile.company_name

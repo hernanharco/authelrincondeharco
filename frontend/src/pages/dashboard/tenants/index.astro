@@ -1,0 +1,177 @@
+---
+export const prerender = false;
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { apiUrl, ENDPOINTS } from '../../../config/api.config';
+
+const token = Astro.cookies.get('access_token')?.value;
+if (!token) {
+	return Astro.redirect('/login');
+}
+
+let tenants: any[] = [];
+let allModules: any[] = [];
+
+try {
+	const [tenantsRes, modulesRes] = await Promise.all([
+		fetch(apiUrl(ENDPOINTS.tenants.list), {
+			headers: { Authorization: `Bearer ${token}` },
+		}),
+		fetch(apiUrl(ENDPOINTS.modules.list), {
+			headers: { Authorization: `Bearer ${token}` },
+		}),
+	]);
+
+	if (tenantsRes.status === 401 || modulesRes.status === 401) {
+		return Astro.redirect('/login');
+	}
+
+	if (tenantsRes.ok) tenants = await tenantsRes.json();
+	if (modulesRes.ok) allModules = await modulesRes.json();
+} catch (error) {
+	console.error('Error fetching tenants:', error);
+}
+---
+
+<DashboardLayout title="Tenants">
+	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="space-y-6">
+			<!-- Header -->
+			<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+				<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+					<div>
+						<h2 class="text-xl font-semibold text-[#F9FAFB]">Tenants</h2>
+						<p class="text-[#9CA3AF] mt-1">
+							{tenants.length} tenant{tenants.length !== 1 ? 's' : ''} registrado{tenants.length !== 1 ? 's' : ''}
+						</p>
+					</div>
+					<div class="text-sm text-[#6B7280]">
+						{allModules.length} módulo{allModules.length !== 1 ? 's' : ''} disponible{allModules.length !== 1 ? 's' : ''}
+					</div>
+				</div>
+			</div>
+
+			<!-- Stats -->
+			<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+				<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-4">
+					<div class="flex items-center justify-between">
+						<div>
+							<p class="text-sm text-[#9CA3AF]">Total Tenants</p>
+							<p class="text-xl font-bold text-[#F9FAFB]">{tenants.length}</p>
+						</div>
+						<div class="w-8 h-8 bg-[#6366F1]/10 rounded-lg flex items-center justify-center">
+							<svg class="w-4 h-4 text-[#6366F1]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path>
+							</svg>
+						</div>
+					</div>
+				</div>
+				<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-4">
+					<div class="flex items-center justify-between">
+						<div>
+							<p class="text-sm text-[#9CA3AF]">Activos</p>
+							<p class="text-xl font-bold text-[#10B981]">
+								{tenants.filter((t: any) => t.is_active).length}
+							</p>
+						</div>
+						<div class="w-8 h-8 bg-[#10B981]/10 rounded-lg flex items-center justify-center">
+							<svg class="w-4 h-4 text-[#10B981]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+							</svg>
+						</div>
+					</div>
+				</div>
+				<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-4">
+					<div class="flex items-center justify-between">
+						<div>
+							<p class="text-sm text-[#9CA3AF]">Módulos Disponibles</p>
+							<p class="text-xl font-bold text-[#7C3AED]">{allModules.length}</p>
+						</div>
+						<div class="w-8 h-8 bg-[#7C3AED]/10 rounded-lg flex items-center justify-center">
+							<svg class="w-4 h-4 text-[#7C3AED]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+							</svg>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Tabla de tenants -->
+			<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg overflow-hidden">
+				<div class="overflow-x-auto">
+					<table class="w-full">
+						<thead>
+							<tr class="border-b border-[#2D3148] bg-[#2D3148]/30">
+								<th class="text-left py-3 px-4 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider">Tenant</th>
+								<th class="text-left py-3 px-4 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider">Slug</th>
+								<th class="text-left py-3 px-4 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider">Estado</th>
+								<th class="text-left py-3 px-4 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider">Creado</th>
+								<th class="text-left py-3 px-4 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider">Acciones</th>
+							</tr>
+						</thead>
+						<tbody>
+							{
+								tenants.map((tenant: any) => (
+									<tr class="border-b border-[#2D3148] hover:bg-[#2D3148]/50 transition-colors">
+										<td class="py-4 px-4">
+											<div class="flex items-center">
+												<div class="w-8 h-8 bg-[#6366F1]/20 rounded-lg flex items-center justify-center text-[#6366F1] font-bold text-sm mr-3">
+													{tenant.name.charAt(0).toUpperCase()}
+												</div>
+												<div>
+													<div class="text-sm font-medium text-[#F9FAFB]">{tenant.name}</div>
+												</div>
+											</div>
+										</td>
+										<td class="py-4 px-4">
+											<code class="text-xs bg-[#2D3148] px-2 py-1 rounded text-[#9CA3AF]">{tenant.slug}</code>
+										</td>
+										<td class="py-4 px-4">
+											{tenant.is_active ? (
+												<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#10B981]/10 text-[#10B981]">
+													Activo
+												</span>
+											) : (
+												<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#6B7280]/10 text-[#6B7280]">
+													Inactivo
+												</span>
+											)}
+										</td>
+										<td class="py-4 px-4 text-sm text-[#9CA3AF]">
+											{new Date(tenant.created_at).toLocaleDateString('es-ES')}
+										</td>
+										<td class="py-4 px-4">
+											<a
+												href={`/dashboard/tenants/${tenant.slug}`}
+												class="p-2 text-[#6366F1] hover:bg-[#6366F1]/10 rounded-lg transition-colors inline-block"
+												title="Ver detalle"
+											>
+												<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+												</svg>
+											</a>
+										</td>
+									</tr>
+								))
+							}
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+			{
+				tenants.length === 0 && (
+					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-12 text-center">
+						<div class="w-16 h-16 bg-[#6366F1]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+							<svg class="w-8 h-8 text-[#6366F1]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+							</svg>
+						</div>
+						<h3 class="text-lg font-semibold text-[#F9FAFB] mb-2">No hay tenants</h3>
+						<p class="text-[#9CA3AF]">Crea el primer tenant desde la API o una migración.</p>
+					</div>
+				)
+			}
+		</div>
+	</main>
+</DashboardLayout>

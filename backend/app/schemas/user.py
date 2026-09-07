@@ -21,6 +21,7 @@ class UserResponse(BaseModel):
     notes: Optional[str] = None
     last_ip: Optional[str] = None
     login_count: int = 0
+    tenant_id: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -63,6 +64,7 @@ class UserCreate(BaseModel):
     notes: Optional[str] = None
     last_ip: Optional[str] = None
     login_count: int = 0
+    tenant_id: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -78,6 +80,7 @@ class UserUpdate(BaseModel):
     notes: Optional[str] = None
     last_ip: Optional[str] = None
     login_count: Optional[int] = None
+    tenant_id: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
