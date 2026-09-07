@@ -67,9 +67,28 @@ async def google_callback(
     auth_service: AuthService = Depends(get_auth_service)
 ):
     try:
+        # Extraer el origin (sitio de origen) del redirect_to antes de procesar
+        origin = None
+        if state:
+            try:
+                payload = json.loads(state)
+                redirect_to = payload.get("redirect_to", "")
+                if redirect_to.startswith("http"):
+                    parsed = urlparse(redirect_to)
+                    # Extraer dominio principal: "www.rincom.es" -> "rincom"
+                    host = parsed.hostname or ""
+                    # Quitar "www." si existe
+                    if host.startswith("www."):
+                        host = host[4:]
+                    # Extraer nombre del dominio antes del TLD: "rincom.es" -> "rincom"
+                    origin = host.split(".")[0] if host else None
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         user, internal_token, expires_in = await auth_service.process_google_login(
             code=code,
-            redirect_uri=REDIRECT_URI
+            redirect_uri=REDIRECT_URI,
+            origin=origin,
         )
 
         # Login exitoso — setear cookie y redirigir al frontend

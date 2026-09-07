@@ -197,12 +197,17 @@ class AuthService(IAuthService):
         return await self.token_service.revoke_token(token)
 
     async def process_google_login(
-        self, code: str, redirect_uri: str
+        self, code: str, redirect_uri: str, origin: str = None
     ) -> Tuple[User, str, int]:
         """
         Procesa un login con Google usando el Authorization Code Flow.
         Ahora usa las dependencias inyectadas (oauth_service, user_repository, token_service)
         en lugar de hacer llamadas HTTP directas y manipular la BD a mano.
+
+        Args:
+            code: Authorization code de Google
+            redirect_uri: URI de callback registrada
+            origin: Sitio de origen (ej: "rincom", "nanatamoda") extraído del redirect_to
         """
         try:
             # Paso 1: intercambiar code por info del usuario (delega en OAuthService)
@@ -228,6 +233,9 @@ class AuthService(IAuthService):
                     username = f"{base_username}{counter}"
                     counter += 1
 
+                # Guardar el origen real del sitio, no solo "google"
+                user_origin = origin if origin else "google"
+
                 await self.user_repository.create(
                     {
                         "username": username,
@@ -238,7 +246,7 @@ class AuthService(IAuthService):
                         "status": UserStatus.PENDING,
                         "is_active": False,
                         "is_locked": False,
-                        "origin": "google",
+                        "origin": user_origin,
                     }
                 )
 
@@ -246,6 +254,10 @@ class AuthService(IAuthService):
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="PENDING_APPROVAL",
                 )
+
+            # Usuario existente — actualizar origin si vino de un sitio nuevo
+            if origin and user.origin != origin:
+                await self.user_repository.update(user.id, {"origin": origin})
 
             # Usuario existente — validar estado
             if user.status == UserStatus.PENDING:
