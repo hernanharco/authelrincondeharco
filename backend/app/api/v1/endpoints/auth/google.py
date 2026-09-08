@@ -97,8 +97,16 @@ async def google_callback(
         cookie_domain = f".{frontend_host.split('.', 1)[1]}" if is_prod else "localhost"
 
         # Determinar destino
+        # SUPERADMIN → ir directo al dashboard (no necesita seleccionar tenant)
+        # Otros → select-tenant para elegir empresa
         redirect_dest = _get_frontend_redirect(state)
-        if redirect_dest.startswith(FRONTEND_URL):
+        is_superadmin = user.role.value == "SUPERADMIN" if hasattr(user, 'role') else False
+
+        if is_superadmin:
+            # SUPERADMIN va directo al dashboard
+            redirect_dest = f"{FRONTEND_URL}/dashboard"
+        elif redirect_dest.startswith(FRONTEND_URL):
+            # Usuarios normales → select-tenant
             redirect_dest = f"{FRONTEND_URL}/select-tenant"
 
         # Crear response con la URL correcta
