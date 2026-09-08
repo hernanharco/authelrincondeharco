@@ -1,0 +1,295 @@
+---
+export const prerender = false;
+import DashboardLayout from '../../../../layouts/DashboardLayout.astro';
+import { apiUrl, ENDPOINTS } from '../../../../config/api.config';
+
+const token = Astro.cookies.get('access_token')?.value;
+if (!token) {
+	return Astro.redirect('/login');
+}
+
+const slug = Astro.params.slug;
+if (!slug) {
+	return Astro.redirect('/dashboard/tenants');
+}
+
+let tenant: any = null;
+let allModules: any[] = [];
+let tenantModules: any[] = [];
+let error = '';
+
+try {
+	// 1. Get tenant by slug
+	const tenantRes = await fetch(apiUrl(ENDPOINTS.tenants.bySlug(slug)), {
+		headers: { Authorization: `Bearer ${token}` },
+	});
+
+	if (tenantRes.status === 401) return Astro.redirect('/login');
+	if (!tenantRes.ok) {
+		error = `Tenant "${slug}" no encontrado`;
+	} else {
+		tenant = await tenantRes.json();
+
+		// 2. Get all available modules and tenant's assigned modules
+		const [allModsRes, assignedRes] = await Promise.all([
+			fetch(apiUrl(ENDPOINTS.modules.list), {
+				headers: { Authorization: `Bearer ${token}` },
+			}),
+			fetch(apiUrl(ENDPOINTS.tenants.modules(tenant.id)), {
+				headers: { Authorization: `Bearer ${token}` },
+			}),
+		]);
+
+		if (allModsRes.ok) allModules = await allModsRes.json();
+		if (assignedRes.ok) tenantModules = await assignedRes.json();
+	}
+} catch (e) {
+	error = 'Error al cargar datos';
+	console.error(e);
+}
+
+// Build a map of assigned modules for quick lookup
+const assignedMap = new Map(tenantModules.map((tm: any) => [tm.module_id, tm]));
+
+// Known providers per module (from VISION-SAAS.md)
+const MODULE_PROVIDERS: Record<string, string[]> = {
+	inventory: ['vinted', 'micolet', 'amway'],
+	radar: [],
+};
+---
+
+<DashboardLayout title={`Gestionar: ${tenant?.name || 'Tenant'}`}>
+	<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="space-y-6">
+			{/* Error */}
+			{error && (
+				<div class="bg-[#1E2130] border border-[#EF4444]/30 rounded-lg p-6">
+					<p class="text-[#EF4444]">{error}</p>
+					<a href="/dashboard/tenants" class="text-[#6366F1] hover:underline mt-2 inline-block">← Volver</a>
+				</div>
+			)}
+
+			{tenant && (
+				<>
+					{/* Header */}
+					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-4">
+								<div class="w-12 h-12 bg-[#6366F1]/20 rounded-xl flex items-center justify-center text-[#6366F1] font-bold text-xl">
+									{tenant.name.charAt(0).toUpperCase()}
+								</div>
+								<div>
+									<h2 class="text-xl font-semibold text-[#F9FAFB]">{tenant.name}</h2>
+									<code class="text-xs bg-[#2D3148] px-2 py-1 rounded text-[#9CA3AF]">{tenant.slug}</code>
+								</div>
+							</div>
+							<a href={`/dashboard/tenants/${tenant.slug}`} class="text-[#9CA3AF] hover:text-[#F9FAFB] text-sm">← Volver</a>
+						</div>
+					</div>
+
+					{/* Modules Management */}
+					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+						<h3 class="text-lg font-semibold text-[#F9FAFB] mb-6">Módulos y Proveedores</h3>
+
+						<div class="space-y-4">
+							{allModules.map((mod: any) => {
+								const assigned = assignedMap.get(mod.id);
+								const isActive = assigned?.is_active || false;
+								const settings = assigned?.settings || {};
+								const providers = MODULE_PROVIDERS[mod.id] || [];
+								const enabledProviders: string[] = settings.enabled_providers || [];
+
+								return (
+									<div class="bg-[#2D3148]/50 rounded-lg p-5" data-module-card={mod.id}>
+										{/* Module header */}
+										<div class="flex items-center justify-between mb-3">
+											<div class="flex items-center gap-3">
+												<div class={`w-3 h-3 rounded-full ${isActive ? 'bg-[#10B981]' : 'bg-[#6B7280]}`}></div>
+												<div>
+													<span class="text-sm font-medium text-[#F9FAFB]">{mod.name}</span>
+													{mod.description && (
+														<p class="text-xs text-[#9CA3AF] mt-0.5">{mod.description}</p>
+													)}
+												</div>
+											</div>
+											{/* Toggle button */}
+											<button
+												data-toggle-module={mod.id}
+												data-tenant-id={tenant.id}
+												class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${isActive ? 'bg-[#10B981]' : 'bg-[#6B7280]'}`}
+											>
+												<span class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-6' : 'translate-x-1'}`}></span>
+											</button>
+										</div>
+
+										{/* Providers (only if module has providers) */}
+										{providers.length > 0 && isActive && (
+											<div class="ml-6 mt-3 pl-4 border-l border-[#374151]">
+												<p class="text-xs text-[#6B7280] uppercase tracking-wider mb-2">Proveedores</p>
+												<div class="space-y-2">
+													{providers.map((prov: string) => {
+														const provEnabled = enabledProviders.includes(prov);
+														return (
+															<div class="flex items-center justify-between">
+																<div class="flex items-center gap-2">
+																	<div class={`w-2 h-2 rounded-full ${provEnabled ? 'bg-[#10B981]' : 'bg-[#6B7280]'}`}></div>
+																	<span class="text-sm text-[#F9FAFB]">{prov}</span>
+																</div>
+																<button
+																	data-toggle-provider={prov}
+																	data-module-id={mod.id}
+																	data-tenant-id={tenant.id}
+																	class={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${provEnabled ? 'bg-[#10B981]' : 'bg-[#6B7280]'}`}
+																>
+																	<span class={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${provEnabled ? 'translate-x-[18px]' : 'translate-x-[2px]'}`}></span>
+																</button>
+															</div>
+														);
+													})}
+												</div>
+											</div>
+										)}
+
+										{/* Not assigned notice */}
+										{!assigned && (
+											<div class="ml-6 mt-2">
+												<p class="text-xs text-[#6B7280] italic">No asignado a este tenant</p>
+											</div>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					</div>
+
+					{/* Info */}
+					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+						<h3 class="text-sm font-semibold text-[#9CA3AF] uppercase tracking-wider mb-3">Cómo funciona</h3>
+						<ul class="text-sm text-[#9CA3AF] space-y-2">
+							<li class="flex items-start gap-2">
+								<span class="text-[#10B981] mt-0.5">•</span>
+								<span><strong class="text-[#F9FAFB]">Módulo ON:</strong> el tenant puede usar ese módulo. Aparece en su JWT y en su sidebar.</span>
+							</li>
+							<li class="flex items-start gap-2">
+								<span class="text-[#10B981] mt-0.5">•</span>
+								<span><strong class="text-[#F9FAFB]">Módulo OFF:</strong> el tenant NO puede acceder. Recibe 403 si intenta.</span>
+							</li>
+							<li class="flex items-start gap-2">
+								<span class="text-[#10B981] mt-0.5">•</span>
+								<span><strong class="text-[#F9FAFB]">Provider ON:</strong> el tenant puede usar esa integración específica (ej: sincronizar con Vinted).</span>
+							</li>
+							<li class="flex items-start gap-2">
+								<span class="text-[#10B981] mt-0.5">•</span>
+								<span><strong class="text-[#F9FAFB]">Provider OFF:</strong> esa integración está deshabilitada para este tenant.</span>
+							</li>
+							<li class="flex items-start gap-2">
+								<span class="text-[#10B981] mt-0.5">•</span>
+								<span>Los cambios se reflejan inmediatamente en el JWT del tenant (en su próximo login).</span>
+							</li>
+						</ul>
+					</div>
+				</>
+			)}
+		</div>
+	</main>
+
+	<script define:vars={{ tenantId: tenant?.id, tenantModules: tenantModules }}>
+		// Module toggle handlers
+		document.querySelectorAll('[data-toggle-module]').forEach(btn => {
+			btn.addEventListener('click', async () => {
+				const moduleId = btn.dataset.toggleModule;
+				const tenantId = btn.dataset.tenantId;
+				const card = document.querySelector(`[data-module-card="${moduleId}"]`);
+				const isCurrentlyActive = btn.classList.contains('bg-[#10B981]');
+
+				btn.disabled = true;
+
+				try {
+					const token = document.cookie.split('; ').find(r => r.startsWith('access_token='))?.split('=')[1];
+					const backendUrl = import.meta.env.PUBLIC_BACKEND_URL || 'http://localhost:8000';
+
+					if (isCurrentlyActive) {
+						// Turn OFF — delete the assignment
+						const res = await fetch(`${backendUrl}/api/v1/tenant-modules/tenants/${tenantId}/modules/${moduleId}`, {
+							method: 'DELETE',
+							headers: { Authorization: `Bearer ${token}` },
+						});
+						if (!res.ok) throw new Error('Failed to remove module');
+					} else {
+						// Turn ON — create or update assignment
+						const existing = tenantModules.find(m => m.module_id === moduleId);
+						if (existing) {
+							// Update existing
+							const res = await fetch(`${backendUrl}/api/v1/tenant-modules/tenants/${tenantId}/modules/${moduleId}`, {
+								method: 'PUT',
+								headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+								body: JSON.stringify({ is_active: true }),
+							});
+							if (!res.ok) throw new Error('Failed to update module');
+						} else {
+							// Create new
+							const res = await fetch(`${backendUrl}/api/v1/tenant-modules/tenants/${tenantId}/modules`, {
+								method: 'POST',
+								headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+								body: JSON.stringify({ module_id: moduleId, is_active: true, settings: {} }),
+							});
+							if (!res.ok) throw new Error('Failed to assign module');
+						}
+					}
+
+					// Reload page to reflect changes
+					window.location.reload();
+				} catch (err) {
+					console.error(err);
+					alert('Error al actualizar módulo');
+					btn.disabled = false;
+				}
+			});
+		});
+
+		// Provider toggle handlers
+		document.querySelectorAll('[data-toggle-provider]').forEach(btn => {
+			btn.addEventListener('click', async () => {
+				const provider = btn.dataset.toggleProvider;
+				const moduleId = btn.dataset.moduleId;
+				const tenantId = btn.dataset.tenantId;
+				const isCurrentlyEnabled = btn.classList.contains('bg-[#10B981]');
+
+				btn.disabled = true;
+
+				try {
+					const token = document.cookie.split('; ').find(r => r.startsWith('access_token='))?.split('=')[1];
+					const backendUrl = import.meta.env.PUBLIC_BACKEND_URL || 'http://localhost:8000';
+
+					// Get current settings
+					const existing = tenantModules.find(m => m.module_id === moduleId);
+					const currentProviders = existing?.settings?.enabled_providers || [];
+
+					let newProviders;
+					if (isCurrentlyEnabled) {
+						newProviders = currentProviders.filter(p => p !== provider);
+					} else {
+						newProviders = [...currentProviders, provider];
+					}
+
+					const res = await fetch(`${backendUrl}/api/v1/tenant-modules/tenants/${tenantId}/modules/${moduleId}`, {
+						method: 'PUT',
+						headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							settings: { enabled_providers: newProviders },
+						}),
+					});
+
+					if (!res.ok) throw new Error('Failed to update provider');
+
+					// Reload to reflect changes
+					window.location.reload();
+				} catch (err) {
+					console.error(err);
+					alert('Error al actualizar proveedor');
+					btn.disabled = false;
+				}
+			});
+		});
+	</script>
+</DashboardLayout>

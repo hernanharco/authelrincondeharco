@@ -95,11 +95,19 @@ const unassignedModules = allModules.filter((m: any) => !assignedIds.has(m.id));
 
 					{/* Módulos asignados */}
 					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
-						<div class="flex items-center justify-between mb-4">
+								<div class="flex items-center justify-between mb-4">
 							<h3 class="text-lg font-semibold text-[#F9FAFB]">Módulos Asignados</h3>
-							<span class="text-sm text-[#6B7280]">
-								{tenantModules.length} de {allModules.length}
-							</span>
+							<div class="flex items-center gap-3">
+								<a
+									href={`/dashboard/tenants/${tenant.slug}/manage`}
+									class="px-3 py-1.5 bg-[#6366F1] text-white text-xs font-medium rounded-lg hover:bg-[#5558E3] transition-colors"
+								>
+									Gestionar Módulos
+								</a>
+								<span class="text-sm text-[#6B7280]">
+									{tenantModules.length} de {allModules.length}
+								</span>
+							</div>
 						</div>
 
 						{tenantModules.length > 0 ? (
