@@ -51,7 +51,9 @@ try {
 	}
 
 	if (usersRes.ok) {
-		users = await usersRes.json();
+		const allUsers = await usersRes.json();
+		// Solo mostrar usuarios activos (los inactivos/rechazados van a /dashboard/pending)
+		users = allUsers.filter((u: any) => u.status !== 'INACTIVE');
 	}
 	if (statsRes.ok) {
 		stats = await statsRes.json();
