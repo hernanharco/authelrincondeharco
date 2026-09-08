@@ -8,5 +8,6 @@ from app.models.company_profile import CompanyProfile
 from app.models.tenant import Tenant
 from app.models.module import Module
 from app.models.tenant_module import TenantModule
+from app.models.user_tenant import UserTenant
 
-__all__ = ["User", "CompanyProfile", "Tenant", "Module", "TenantModule"]
+__all__ = ["User", "CompanyProfile", "Tenant", "Module", "TenantModule", "UserTenant"]
