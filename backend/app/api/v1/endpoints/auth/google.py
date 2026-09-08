@@ -92,17 +92,31 @@ async def google_callback(
         )
 
         # Login exitoso — setear cookie y redirigir
-        # Si el usuario tiene múltiples tenants, redirigir a selección
-        # Si tiene solo uno, redirigir directo al dashboard
         is_prod = settings.is_production
         frontend_host = urlparse(FRONTEND_URL).hostname or "localhost"
         cookie_domain = f".{frontend_host.split('.', 1)[1]}" if is_prod else "localhost"
 
-        # Determinar destino: select-tenant o dashboard
+        # Determinar destino
         redirect_dest = _get_frontend_redirect(state)
         if redirect_dest.startswith(FRONTEND_URL):
-            # Es el frontend de authCore — redirigir a select-tenant
             redirect_dest = f"{FRONTEND_URL}/select-tenant"
+
+        # Crear response con la URL correcta
+        if not redirect_dest.startswith(FRONTEND_URL):
+            # Token en el PATH para cross-origin
+            if "/api/auth/callback" in redirect_dest:
+                token_path = redirect_dest.replace("/api/auth/callback", f"/api/auth/callback/{internal_token}")
+            else:
+                parsed = list(urlparse(redirect_dest))
+                query = parse_qs(parsed[4])
+                query["token"] = internal_token
+                parsed[4] = urlencode(query, doseq=True)
+                token_path = urlunparse(parsed)
+            response = RedirectResponse(url=token_path)
+        else:
+            response = RedirectResponse(url=redirect_dest)
+
+        # Setear cookie en TODOS los casos
         response.set_cookie(
             key="access_token",
             value=internal_token,
@@ -113,41 +127,6 @@ async def google_callback(
             secure=is_prod,
             domain=cookie_domain,
         )
-
-        # Si el redirect_to apunta a un origen diferente al de authCore
-        # (ej: Portfolio en localhost:4322), pasamos el token en el PATH
-        if not redirect_dest.startswith(FRONTEND_URL):
-            if "/api/auth/callback" in redirect_dest:
-                token_path = redirect_dest.replace("/api/auth/callback", f"/api/auth/callback/{internal_token}")
-            else:
-                parsed = list(urlparse(redirect_dest))
-                query = parse_qs(parsed[4])
-                query["token"] = internal_token
-                parsed[4] = urlencode(query, doseq=True)
-                token_path = urlunparse(parsed)
-            response = RedirectResponse(url=token_path)
-            response.set_cookie(
-                key="access_token",
-                value=internal_token,
-                httponly=True,
-                max_age=expires_in,
-                path="/",
-                samesite="none" if is_prod else "lax",
-                secure=is_prod,
-                domain=cookie_domain,
-            )
-        else:
-            response = RedirectResponse(url=redirect_dest)
-            response.set_cookie(
-                key="access_token",
-                value=internal_token,
-                httponly=True,
-                max_age=expires_in,
-                path="/",
-                samesite="none" if is_prod else "lax",
-                secure=is_prod,
-                domain=cookie_domain,
-            )
 
         logging.info(f"✅ Login Google exitoso para: {user.email}")
         return response
