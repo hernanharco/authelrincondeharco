@@ -104,7 +104,7 @@ const MODULE_PROVIDERS: Record<string, string[]> = {
 										{/* Module header */}
 										<div class="flex items-center justify-between mb-3">
 											<div class="flex items-center gap-3">
-												<div class={`w-3 h-3 rounded-full ${isActive ? 'bg-[#10B981]' : 'bg-[#6B7280]}`}></div>
+												<div class={'w-3 h-3 rounded-full ' + (isActive ? 'bg-[#10B981]' : 'bg-[#6B7280]')}></div>
 												<div>
 													<span class="text-sm font-medium text-[#F9FAFB]">{mod.name}</span>
 													{mod.description && (
@@ -118,7 +118,7 @@ const MODULE_PROVIDERS: Record<string, string[]> = {
 												data-tenant-id={tenant.id}
 												class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${isActive ? 'bg-[#10B981]' : 'bg-[#6B7280]'}`}
 											>
-												<span class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-6' : 'translate-x-1'}`}></span>
+												<span class={'inline-block h-4 w-4 transform rounded-full bg-white transition-transform ' + (isActive ? 'translate-x-6' : 'translate-x-1')}></span>
 											</button>
 										</div>
 
@@ -141,7 +141,7 @@ const MODULE_PROVIDERS: Record<string, string[]> = {
 																	data-tenant-id={tenant.id}
 																	class={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${provEnabled ? 'bg-[#10B981]' : 'bg-[#6B7280]'}`}
 																>
-																	<span class={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${provEnabled ? 'translate-x-[18px]' : 'translate-x-[2px]'}`}></span>
+																	<span class={'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ' + (provEnabled ? 'translate-x-[18px]' : 'translate-x-[2px]')}></span>
 																</button>
 															</div>
 														);
@@ -193,7 +193,13 @@ const MODULE_PROVIDERS: Record<string, string[]> = {
 		</div>
 	</main>
 
-	<script define:vars={{ tenantId: tenant?.id, tenantModules: tenantModules }}>
+	<!-- Hidden data for client-side script -->
+	<script id="tenant-modules-data" type="application/json" set:html={JSON.stringify(tenantModules)} />
+
+	<script define:vars={{ tenantId: tenant?.id }}>
+		// Parse tenant modules from the page
+		const tenantModulesEl = document.getElementById('tenant-modules-data');
+		const tenantModules = tenantModulesEl ? JSON.parse(tenantModulesEl.textContent || '[]') : [];
 		// Module toggle handlers
 		document.querySelectorAll('[data-toggle-module]').forEach(btn => {
 			btn.addEventListener('click', async () => {
