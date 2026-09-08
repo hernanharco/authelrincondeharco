@@ -112,16 +112,10 @@ async def google_callback(
 
         # Crear response con la URL correcta
         if not redirect_dest.startswith(FRONTEND_URL):
-            # Token en el PATH para cross-origin
-            if "/api/auth/callback" in redirect_dest:
-                token_path = redirect_dest.replace("/api/auth/callback", f"/api/auth/callback/{internal_token}")
-            else:
-                parsed = list(urlparse(redirect_dest))
-                query = parse_qs(parsed[4])
-                query["token"] = internal_token
-                parsed[4] = urlencode(query, doseq=True)
-                token_path = urlunparse(parsed)
-            response = RedirectResponse(url=token_path)
+            # Cross-origin: pasar token como query param para que el sitio lo reciba
+            separator = "&" if "?" in redirect_dest else "?"
+            token_url = f"{redirect_dest}{separator}token={internal_token}"
+            response = RedirectResponse(url=token_url)
         else:
             response = RedirectResponse(url=redirect_dest)
 
