@@ -97,17 +97,18 @@ async def google_callback(
         cookie_domain = f".{frontend_host.split('.', 1)[1]}" if is_prod else "localhost"
 
         # Determinar destino
-        # SUPERADMIN → ir directo al dashboard (no necesita seleccionar tenant)
-        # Otros → select-tenant para elegir empresa
         redirect_dest = _get_frontend_redirect(state)
         is_superadmin = user.role.value == "SUPERADMIN" if hasattr(user, 'role') else False
+        is_authcore_frontend = redirect_dest.startswith(FRONTEND_URL)
 
-        if is_superadmin:
-            # SUPERADMIN va directo al dashboard
+        if is_superadmin and is_authcore_frontend:
+            # SUPERADMIN en authCore → ir directo al dashboard
             redirect_dest = f"{FRONTEND_URL}/dashboard"
-        elif redirect_dest.startswith(FRONTEND_URL):
-            # Usuarios normales → select-tenant
+        elif is_authcore_frontend:
+            # Usuario normal en authCore → select-tenant
             redirect_dest = f"{FRONTEND_URL}/select-tenant"
+        # Si el destino es otro sitio (nanatamoda, rincom, etc.) → mantener el redirect_to original
+        # El token se pasa vía cookie o PATH según el caso
 
         # Crear response con la URL correcta
         if not redirect_dest.startswith(FRONTEND_URL):
