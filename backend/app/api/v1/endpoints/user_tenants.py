@@ -30,19 +30,38 @@ async def get_my_tenants(
 ):
     """
     Retorna los tenants a los que pertenece el usuario actual.
-    Incluye slug y name del tenant para mostrar en la UI.
+    SUPERADMIN: ve TODOS los tenants.
+    Otros: solo los asignados en user_tenants.
     """
+    # SUPERADMIN bypass — ver todos los tenants
+    if current_user.role.value == "SUPERADMIN":
+        result = await db.execute(select(Tenant).where(Tenant.is_active == True))
+        tenants = result.scalars().all()
+        return [
+            UserTenantResponse(
+                id=f"superadmin-{t.id}",
+                user_id=str(current_user.id),
+                tenant_id=t.id,
+                tenant_slug=t.slug,
+                tenant_name=t.name,
+                role="ADMIN",
+                created_at=t.created_at,
+            )
+            for t in tenants
+        ]
+
+    # Usuarios normales — buscar en user_tenants
     result = await db.execute(
         select(UserTenant, Tenant)
         .join(Tenant, UserTenant.tenant_id == Tenant.id)
-        .where(UserTenant.user_id == str(current_user.id))
+        .where(UserTenant.user_id == current_user.id)
     )
     rows = result.all()
 
     return [
         UserTenantResponse(
             id=ut.id,
-            user_id=ut.user_id,
+            user_id=str(ut.user_id),
             tenant_id=ut.tenant_id,
             tenant_slug=tenant.slug,
             tenant_name=tenant.name,
@@ -70,7 +89,7 @@ async def select_tenant(
     if not is_superadmin:
         result = await db.execute(
             select(UserTenant).where(
-                UserTenant.user_id == str(current_user.id),
+                UserTenant.user_id == current_user.id,
                 UserTenant.tenant_id == data.tenant_id,
             )
         )
