@@ -46,6 +46,18 @@ class Tenant(Base):
         comment="Si está activo puede usar el sistema",
     )
 
+    website_url = Column(
+        String(500),
+        nullable=True,
+        comment="URL del sitio web del tenant (ej: https://www.rincom.es)",
+    )
+
+    admin_url = Column(
+        String(500),
+        nullable=True,
+        comment="URL del panel admin del tenant (ej: https://auth.rincom.es/dashboard)",
+    )
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

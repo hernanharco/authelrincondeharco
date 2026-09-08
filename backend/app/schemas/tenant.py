@@ -15,6 +15,8 @@ class TenantResponse(BaseModel):
     slug: str
     name: str
     is_active: bool
+    website_url: Optional[str] = None
+    admin_url: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -39,10 +41,14 @@ class TenantCreate(BaseModel):
     )
     name: str = Field(..., min_length=1, max_length=255)
     is_active: bool = True
+    website_url: Optional[str] = None
+    admin_url: Optional[str] = None
 
 
 class TenantUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     is_active: Optional[bool] = None
+    website_url: Optional[str] = None
+    admin_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
