@@ -236,8 +236,10 @@ if (pendingUsersCount === 0) {
   } catch (e) {
     console.error("Error servidor:", e);
   } finally {
-    // 2. LIMPIEZA MANUAL EN CLIENTE (El martillo)
-    const domain = ".elrincondeharco.com";
+    // 2. LIMPIEZA MANUAL EN CLIENTE
+    // Detectar dominio actual: "auth.rincom.es" -> ".rincom.es"
+    const hostParts = window.location.hostname.split('.');
+    const domain = hostParts.length > 2 ? '.' + hostParts.slice(-2).join('.') : window.location.hostname;
     
     // Intentamos borrar la cookie con todas las combinaciones posibles
     document.cookie = `access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${domain}; SameSite=None; Secure`;
@@ -245,7 +247,7 @@ if (pendingUsersCount === 0) {
     document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
 
     console.log("Cookie limpiada, redirigiendo...");
-    window.location.href = '/login';
+    window.location.href = "/login";
   }
 });
     </script>
