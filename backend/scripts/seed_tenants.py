@@ -25,6 +25,12 @@ TENANTS = [
     {"slug": "tiendanan", "name": "TiendaNan"},
     {"slug": "tapiceriarincon", "name": "Tapicería Rincón"},
     {"slug": "cafemitierra", "name": "Café Mi Tierra"},
+    {
+        "slug": "vidasaludable",
+        "name": "Vida Saludable",
+        "website_url": "https://vidasaludable.rincom.es",
+        "admin_url": "https://auth.rincom.es/dashboard/tenants/vidasaludable",
+    },
 ]
 
 MODULES = [
