@@ -5,6 +5,8 @@ Implementa IUserRepository para cumplir con el Principio de Inversión de Depend
 Usa SQLAlchemy 2.0 style async: select() + await db.execute()
 """
 from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from fastapi import HTTPException, status
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
@@ -159,3 +161,65 @@ class UserRepository(IUserRepository):
         await self.db.delete(user)
         await self.db.commit()
         return user
+
+    async def search_users(self, query: str, limit: int = 50) -> List[User]:
+        """
+        Busca usuarios por texto (username, email o full_name), case-insensitive.
+        Devuelve hasta `limit` usuarios ordenados por username.
+        """
+        pattern = f"%{query}%"
+        stmt = (
+            select(User)
+            .where(
+                or_(
+                    User.username.ilike(pattern),
+                    User.email.ilike(pattern),
+                    User.full_name.ilike(pattern),
+                )
+            )
+            .order_by(User.username)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_user_activity_summary(self, user_id: int) -> Dict[str, Any]:
+        """
+        Resumen de actividad de un usuario.
+        Returns:
+            Dict con user_id, username, total_logins, last_login,
+            failed_attempts, is_locked, account_age_days, recent_activity
+        """
+        user = await self.get_by_id(user_id)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuario no encontrado",
+            )
+
+        now = datetime.now(timezone.utc)
+
+        def as_utc(dt: Optional[datetime]) -> Optional[datetime]:
+            # Algunos backends (p.ej. SQLite) devuelven datetimes naive: asumimos UTC.
+            if dt is None:
+                return None
+            return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+        created_at = as_utc(user.created_at)
+        last_login = as_utc(user.last_login)
+
+        account_age_days = (now - created_at).days if created_at is not None else 0
+        recent_activity = bool(
+            last_login is not None and now - last_login <= timedelta(days=7)
+        )
+
+        return {
+            "user_id": user.id,
+            "username": user.username,
+            "total_logins": user.login_count or 0,
+            "last_login": user.last_login,
+            "failed_attempts": user.failed_login_attempts or 0,
+            "is_locked": bool(user.is_locked),
+            "account_age_days": account_age_days,
+            "recent_activity": recent_activity,
+        }

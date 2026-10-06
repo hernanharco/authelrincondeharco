@@ -91,19 +91,19 @@ class IUserService(ABC):
         pass
     
     @abstractmethod
-    async def delete_user(self, user_id: int, current_user: User) -> bool:
+    async def delete_user(self, user_id: int, current_user: User) -> User:
         """
-        Desactiva un usuario (borrado lógico).
+        Elimina un usuario (borrado físico) y lo devuelve.
         
         Args:
-            user_id: ID del usuario a desactivar
+            user_id: ID del usuario a eliminar
             current_user: Usuario que realiza la acción
             
         Returns:
-            True si se desactivó correctamente
+            El usuario eliminado
             
         Raises:
-            HTTPException: Si no tiene permisos
+            HTTPException: 403 si no tiene permisos, 404 si no existe
         """
         pass
     

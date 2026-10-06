@@ -60,7 +60,7 @@ class UserQueryService:
         """
         Obtiene usuarios pendientes de aprobación.
         """
-        UserValidationService.validate_superadmin_permission(current_user, "ver usuarios pendientes")
+        UserValidationService.validate_admin_permission(current_user, "ver usuarios pendientes")
 
         return await self.user_repository.get_pending_users()
 

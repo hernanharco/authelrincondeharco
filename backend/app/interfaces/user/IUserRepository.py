@@ -48,6 +48,24 @@ class IUserRepository(ABC):
         """
         pass
 
+    @abstractmethod
+    async def search_users(self, query: str, limit: int = 50) -> List[User]:
+        """
+        Busca usuarios por texto (username, email o full_name), case-insensitive.
+        Devuelve hasta `limit` usuarios ordenados por username.
+        """
+        pass
+
+    @abstractmethod
+    async def get_user_activity_summary(self, user_id: int) -> Dict[str, Any]:
+        """
+        Resumen de actividad de un usuario.
+        Returns:
+            Dict con user_id, username, total_logins, last_login,
+            failed_attempts, is_locked, account_age_days, recent_activity
+        """
+        pass
+
     # --- Existencia ---
 
     @abstractmethod

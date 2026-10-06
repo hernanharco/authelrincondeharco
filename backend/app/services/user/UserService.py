@@ -91,16 +91,24 @@ class UserService(IUserService):
         """
         return await self.update_service.update_user(user_id, update_data, current_user)
 
-    async def delete_user(self, user_id: int, current_user: User) -> bool:
+    async def delete_user(self, user_id: int, current_user: User) -> User:
         """
-        Desactiva un usuario (borrado lógico).
+        Elimina un usuario (borrado físico, no borrado lógico).
+        Devuelve el usuario eliminado.
         """
         user = await self.user_repository.get_by_id(user_id)
         UserValidationService.validate_user_exists(user)
 
         UserValidationService.validate_permission_to_delete(current_user, user)
 
-        return await self.user_repository.delete(user_id)
+        deleted_user = await self.user_repository.delete(user_id)
+        if deleted_user is None:
+            # Carrera entre la validación y el borrado: el usuario ya no existe.
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuario no encontrado",
+            )
+        return deleted_user
 
     async def update_user_role(
         self, user_id: int, new_role: UserRole, current_user: User
