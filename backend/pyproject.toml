@@ -88,7 +88,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q --strict-markers --strict-config"
+addopts = "-ra -q --strict-markers --strict-config --cov=app --cov-report=term-missing --cov-fail-under=80"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
@@ -101,6 +101,12 @@ markers = [
 
 [tool.coverage.run]
 source = ["app"]
+# ctrace (núcleo por defecto) pierde eventos de línea al reanudar corutinas
+# dentro del stack ASGI en Python 3.12 → subconteo de cobertura (líneas
+# ejecutadas en colas de handlers se reportaban como miss). sysmon
+# (sys.monitoring) las registra correctamente. Verificado empíricamente:
+# mismos tests, ctrace → miss, sysmon → cubierto.
+core = "sysmon"
 omit = ["*/tests/*", "*/test_*", "*/__pycache__/*", "*/migrations/*"]
 
 [tool.coverage.report]

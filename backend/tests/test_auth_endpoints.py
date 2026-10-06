@@ -17,13 +17,25 @@ Deriva vs la suite original (Fase 1):
   el JSON; la cookie se valida en el callback.
 - Nuevo test de rate limit: /login es 10/minute (slowapi); el override de
   conftest (`disable_rate_limiter`) debe impedir el 429 en la suite.
+
+Cobertura extra (Fase 1, gate 80%): ramas del callback sin probar —
+origin extraído del state (redirect_to absoluto), redirect cross-origin
+con token por query param, SUPERADMIN → /dashboard, error de exchange,
+email ausente, cuenta bloqueada, cuenta inactiva (comportamiento real,
+bug reportado), excepción genérica y state con JSON inválido. Más tests
+unitarios directos de `_get_frontend_redirect`.
 """
+import json
 import re
 import pytest
 from datetime import timedelta
+from urllib.parse import unquote_plus
 from fastapi import status
 from sqlalchemy import select
 # Importamos la herramienta de hashing real para evitar hardcoding de hashes
+from app.main import app
+from app.api.v1.dependencies import get_auth_service
+from app.api.v1.endpoints.auth.google import FRONTEND_URL, _get_frontend_redirect
 from app.core.config import settings
 from app.core.security import create_access_token, get_password_hash
 from app.schemas.auth import LoginRequest
@@ -147,6 +159,180 @@ class TestAuthEndpoints:
         assert user.role == UserRole.NONE
         assert user.is_active is False
 
+    async def test_google_callback_superadmin_goes_to_dashboard(
+        self, client, db_session, mock_google_exchange
+    ):
+        """SUPERADMIN en el frontend de authCore → redirect directo a /dashboard."""
+        mock_google_exchange({"email": "root@example.com", "name": "Root"})
+        db_session.add(
+            User(
+                username="root",
+                email="root@example.com",
+                full_name="Root",
+                password_hash=get_password_hash("testpass"),
+                role=UserRole.SUPERADMIN,
+                status=UserStatus.ACTIVE,
+                is_active=True,
+                is_locked=False,
+            )
+        )
+        await db_session.commit()
+
+        response = await client.get("/api/v1/auth/callback?code=test_code")
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        assert response.headers["location"] == f"{FRONTEND_URL}/dashboard"
+        assert "access_token=" in response.headers.get("set-cookie", "")
+
+    async def test_google_callback_cross_origin_keeps_redirect_and_updates_origin(
+        self, client, db_session, test_user, mock_google_exchange
+    ):
+        """redirect_to absoluto de otro dominio → se conserva y el token viaja
+        por query param; el origin extraído del host ("www.rincom.es" →
+        "rincom") se persiste en el usuario.
+        """
+        mock_google_exchange({"email": "test@example.com", "name": "Test User"})
+        db_session.add(test_user)
+        await db_session.commit()
+
+        state = json.dumps({"redirect_to": "https://www.rincom.es/ofertas"})
+        response = await client.get(
+            "/api/v1/auth/callback", params={"code": "test_code", "state": state}
+        )
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        location = response.headers["location"]
+        assert location.startswith("https://www.rincom.es/ofertas?token=")
+        assert "access_token=" in response.headers.get("set-cookie", "")
+
+        # AuthService actualiza user.origin con el dominio de origen
+        result = await db_session.execute(
+            select(User).where(User.email == "test@example.com")
+        )
+        user = result.scalar_one()
+        await db_session.refresh(user)
+        assert user.origin == "rincom"
+
+    async def test_google_callback_userinfo_without_email(
+        self, client, mock_google_exchange
+    ):
+        """Google devuelve userinfo sin email → 400 → /login?error=..."""
+        mock_google_exchange({"name": "Sin Email"})
+
+        response = await client.get("/api/v1/auth/callback?code=test_code")
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        location = response.headers["location"]
+        assert location.startswith(f"{FRONTEND_URL}/login?error=")
+        assert "No se pudo obtener email de Google" in unquote_plus(location)
+
+    async def test_google_callback_locked_user(
+        self, client, db_session, mock_google_exchange
+    ):
+        """Usuario existente bloqueado → 403 del servicio → /login?error=."""
+        mock_google_exchange({"email": "locked@example.com", "name": "Locked"})
+        db_session.add(
+            User(
+                username="locked",
+                email="locked@example.com",
+                full_name="Locked",
+                password_hash=get_password_hash("testpass"),
+                role=UserRole.USER,
+                status=UserStatus.ACTIVE,
+                is_active=True,
+                is_locked=True,
+            )
+        )
+        await db_session.commit()
+
+        response = await client.get("/api/v1/auth/callback?code=test_code")
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        location = response.headers["location"]
+        assert location.startswith(f"{FRONTEND_URL}/login?error=")
+        assert "Cuenta bloqueada" in unquote_plus(location)
+        assert "access_token" not in response.headers.get("set-cookie", "")
+
+    async def test_google_callback_inactive_user_still_gets_token(
+        self, client, db_session, mock_google_exchange
+    ):
+        """Documenta el comportamiento REAL (bug de prod reportado, no fixeado):
+        `process_google_login` solo valida status==PENDING e is_locked — un
+        usuario desactivado (is_active=False, status=INACTIVE) recibe token
+        igual que uno activo.
+        """
+        mock_google_exchange({"email": "inactive@example.com", "name": "Inactivo"})
+        db_session.add(
+            User(
+                username="inactive",
+                email="inactive@example.com",
+                full_name="Inactivo",
+                password_hash=get_password_hash("testpass"),
+                role=UserRole.USER,
+                status=UserStatus.INACTIVE,
+                is_active=False,
+                is_locked=False,
+            )
+        )
+        await db_session.commit()
+
+        response = await client.get("/api/v1/auth/callback?code=test_code")
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        assert response.headers["location"].endswith("/select-tenant")
+        assert "access_token=" in response.headers.get("set-cookie", "")
+
+    async def test_google_callback_exchange_failure(self, client, monkeypatch):
+        """exchange_code revienta → AuthService lo envuelve en 400 → error redirect."""
+        from app.services.auth.GoogleOAuthService import GoogleOAuthService
+
+        async def _boom(self, code, redirect_uri):
+            raise RuntimeError("sin red")
+
+        monkeypatch.setattr(GoogleOAuthService, "exchange_code", _boom)
+
+        response = await client.get("/api/v1/auth/callback?code=test_code")
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        location = response.headers["location"]
+        assert location.startswith(f"{FRONTEND_URL}/login?error=")
+        assert "Error en Google OAuth" in unquote_plus(location)
+
+    async def test_google_callback_unexpected_error(self, client):
+        """Excepción NO-HTTPException fuera del servicio → el handler genérico
+        del callback responde /login?error=Error técnico..."""
+        class _BoomAuthService:
+            async def process_google_login(self, code, redirect_uri, origin=None):
+                raise ValueError("boom")
+
+        app.dependency_overrides[get_auth_service] = lambda: _BoomAuthService()
+        try:
+            response = await client.get("/api/v1/auth/callback?code=test_code")
+        finally:
+            app.dependency_overrides.pop(get_auth_service, None)
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        location = response.headers["location"]
+        assert location.startswith(f"{FRONTEND_URL}/login?error=")
+        assert "Error técnico al procesar el login" in unquote_plus(location)
+
+    async def test_google_callback_invalid_state_json(
+        self, client, db_session, test_user, mock_google_exchange
+    ):
+        """state con JSON inválido → origin ignorado y destino por defecto
+        (usuario normal en authCore → /select-tenant)."""
+        mock_google_exchange({"email": "test@example.com", "name": "Test User"})
+        db_session.add(test_user)
+        await db_session.commit()
+
+        response = await client.get(
+            "/api/v1/auth/callback",
+            params={"code": "test_code", "state": "not-json"},
+        )
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        assert response.headers["location"].endswith("/select-tenant")
+
     async def test_protected_endpoint_without_token(self, client):
         """Test acceso a endpoint protegido sin token"""
         response = await client.get("/api/v1/users/me")
@@ -166,6 +352,37 @@ class TestAuthEndpoints:
         response = await client.get("/api/v1/users/me", headers=headers)
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+class TestGetFrontendRedirect:
+    """Tests unitarios de `_get_frontend_redirect` (destino post-login)."""
+
+    async def test_empty_state_uses_default(self):
+        assert _get_frontend_redirect("") == f"{FRONTEND_URL}/dashboard"
+
+    async def test_missing_redirect_to_uses_default(self):
+        assert _get_frontend_redirect(json.dumps({})) == (
+            f"{FRONTEND_URL}/dashboard"
+        )
+
+    async def test_empty_redirect_to_uses_default(self):
+        state = json.dumps({"redirect_to": ""})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/dashboard"
+
+    async def test_relative_redirect_is_prefixed(self):
+        state = json.dumps({"redirect_to": "/settings"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/settings"
+
+    async def test_absolute_https_redirect_kept(self):
+        state = json.dumps({"redirect_to": "https://otro.es/pagina"})
+        assert _get_frontend_redirect(state) == "https://otro.es/pagina"
+
+    async def test_absolute_http_redirect_kept(self):
+        state = json.dumps({"redirect_to": "http://otro.es/pagina"})
+        assert _get_frontend_redirect(state) == "http://otro.es/pagina"
+
+    async def test_invalid_json_uses_default(self):
+        assert _get_frontend_redirect("not-json") == f"{FRONTEND_URL}/dashboard"
 
 
 # --- FIXTURES ---
