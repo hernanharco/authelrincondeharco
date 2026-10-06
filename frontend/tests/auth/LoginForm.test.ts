@@ -1,182 +1,192 @@
 /**
- * Tests para componente LoginForm
- * Validación de formulario, envío y manejo de errores
+ * Tests para componente LoginForm — rendering, validación e inputs.
+ *
+ * Contrato real (src/components/auth/LoginForm.svelte): labels "Nombre de
+ * usuario"/"Contraseña", botón "Entrar al sistema", validación SOLO vía
+ * atributo HTML `required` + botón deshabilitado hasta completar ambos campos,
+ * sin mensajes de validación propios y sin toggle de visibilidad de
+ * contraseña. El texto de carga es "Validando...".
+ *
+ * El cableado completo (payload de login, redirectParam, persistencia de
+ * auth_user, limpieza de errores) vive en tests/pages/login.test.ts (T4a);
+ * aquí se cubre el contrato del propio componente.
+ *
+ * Intentos descartados de la versión anterior (comportamiento inexistente):
+ * mensajes "El username es requerido" / "al menos 3 caracteres" / "al menos 6
+ * caracteres", toggle "Mostrar/Ocultar contraseña", loading "Iniciando
+ * sesión...", labels "Username"/"Password" y botón "Iniciar Sesión".
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/svelte';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import LoginForm from '../../src/components/auth/LoginForm.svelte';
+import { authService } from '../../src/services/authService';
 
-// Mock del servicio de autenticación
-const mockAuthService = {
-  login: vi.fn(),
-};
+vi.mock('../../src/services/authService', () => ({
+  authService: { login: vi.fn() },
+}));
+
+const mockLogin = vi.mocked(authService.login);
+
+// jsdom no deja redefinir window.location (y `window === globalThis`); se
+// sustituye en globalThis para que la navegación tras el login sea un no-op
+// — mismo patrón que tests/pages/login.test.ts.
+const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+
+function stubLocation(): void {
+  Object.defineProperty(globalThis, 'location', {
+    value: { origin: 'http://localhost:4321', href: '' },
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
+}
+
+function setUsername(value: string) {
+  return fireEvent.input(screen.getByLabelText('Nombre de usuario'), {
+    target: { value },
+  });
+}
+
+function setPassword(value: string) {
+  return fireEvent.input(screen.getByLabelText('Contraseña'), { target: { value } });
+}
+
+function submitButton() {
+  return screen.getByRole('button', { name: 'Entrar al sistema' });
+}
 
 describe('LoginForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mockear el servicio de autenticación
-    vi.doMock('../../src/services/authService.ts', () => mockAuthService);
+    localStorage.clear();
+    stubLocation();
   });
 
-  it('debería renderizar el formulario de login', () => {
-    render(LoginForm);
-
-    expect(screen.getByLabelText('Username')).toBeInTheDocument();
-    expect(screen.getByLabelText('Password')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Iniciar Sesión' })).toBeInTheDocument();
+  afterEach(() => {
+    cleanup();
   });
 
-  it('debería mostrar errores de validación con campos vacíos', async () => {
+  afterAll(() => {
+    if (originalLocation) {
+      Object.defineProperty(globalThis, 'location', originalLocation);
+    }
+  });
+
+  it('debería renderizar labels, placeholders y botón de envío', () => {
     render(LoginForm);
-    
-    const submitButton = screen.getByRole('button', { name: 'Iniciar Sesión' });
-    fireEvent.click(submitButton);
+
+    expect(screen.getByLabelText('Nombre de usuario')).toBeInTheDocument();
+    expect(screen.getByLabelText('Contraseña')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Tu usuario...')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
+
+    const button = submitButton();
+    expect(button).toHaveAttribute('type', 'submit');
+  });
+
+  it('debería asociar cada input con su label, id, tipo y required', () => {
+    render(LoginForm);
+
+    const username = screen.getByLabelText('Nombre de usuario');
+    const password = screen.getByLabelText('Contraseña');
+
+    expect(username).toHaveAttribute('id', 'username');
+    expect(username).toHaveAttribute('type', 'text');
+    expect(username).toBeRequired();
+    expect(password).toHaveAttribute('id', 'password');
+    expect(password).toHaveAttribute('type', 'password');
+    expect(password).toBeRequired();
+  });
+
+  it('debería mantener el botón deshabilitado con ambos campos vacíos', () => {
+    render(LoginForm);
+
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it('debería mantener el botón deshabilitado solo con el usuario relleno', async () => {
+    render(LoginForm);
+
+    await setUsername('alice');
+
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it('debería mantener el botón deshabilitado solo con la contraseña rellena', async () => {
+    render(LoginForm);
+
+    await setPassword('secret');
+
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it('debería habilitar el botón al completar usuario y contraseña', async () => {
+    render(LoginForm);
+
+    await setUsername('alice');
+    await setPassword('secret');
+
+    expect(submitButton()).toBeEnabled();
+  });
+
+  it('debería enviar las credenciales a authService.login', async () => {
+    mockLogin.mockResolvedValue({
+      access_token: 'jwt',
+      token_type: 'bearer',
+      user: { id: '1', username: 'alice', email: 'alice@example.com' },
+    });
+    render(LoginForm);
+
+    await setUsername('alice');
+    await setPassword('hunter2');
+    await fireEvent.click(submitButton());
 
     await waitFor(() => {
-      expect(screen.getByText('El username es requerido')).toBeInTheDocument();
-      expect(screen.getByText('La contraseña es requerida')).toBeInTheDocument();
+      expect(mockLogin).toHaveBeenCalledWith({ username: 'alice', password: 'hunter2' });
     });
   });
 
-  it('debería mostrar error de validación con username corto', async () => {
-    render(LoginForm);
-    
-    const usernameInput = screen.getByLabelText('Username');
-    const submitButton = screen.getByRole('button', { name: 'Iniciar Sesión' });
-    
-    fireEvent.input(usernameInput, { target: { value: 'ab' } });
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('El username debe tener al menos 3 caracteres')).toBeInTheDocument();
+  it('debería confiar en required/required+disabled sin mensajes de validación propios', async () => {
+    mockLogin.mockResolvedValue({
+      access_token: 'jwt',
+      token_type: 'bearer',
+      user: { id: '1', username: 'ab', email: 'ab@example.com' },
     });
+    render(LoginForm);
+
+    // Valores "cortos": el componente no aplica reglas de longitud propias.
+    await setUsername('ab');
+    await setPassword('123');
+    await fireEvent.click(submitButton());
+
+    expect(await screen.findByText('¡Sesión iniciada con éxito!')).toBeInTheDocument();
+    expect(screen.queryByText(/requerido|requerida|al menos/i)).not.toBeInTheDocument();
   });
 
-  it('debería mostrar error de validación con contraseña corta', async () => {
+  it('debería mostrar "Validando..." y deshabilitar los inputs durante el envío', async () => {
+    mockLogin.mockReturnValue(new Promise(() => {})); // nunca resuelve
     render(LoginForm);
-    
-    const passwordInput = screen.getByLabelText('Password');
-    const submitButton = screen.getByRole('button', { name: 'Iniciar Sesión' });
-    
-    fireEvent.input(passwordInput, { target: { value: '123' } });
-    fireEvent.click(submitButton);
 
-    await waitFor(() => {
-      expect(screen.getByText('La contraseña debe tener al menos 6 caracteres')).toBeInTheDocument();
-    });
+    await setUsername('alice');
+    await setPassword('secret');
+    await fireEvent.click(submitButton());
+
+    expect(await screen.findByText('Validando...')).toBeInTheDocument();
+    expect(screen.getByLabelText('Nombre de usuario')).toBeDisabled();
+    expect(screen.getByLabelText('Contraseña')).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Validando/ })).toBeDisabled();
   });
 
-  it('debería llamar al servicio de autenticación con datos válidos', async () => {
-    mockAuthService.login.mockResolvedValue({
-      access_token: 'mock_token',
-      user: { id: 1, username: 'testuser' }
-    });
-
+  it('no debería incluir toggle de visibilidad de contraseña', async () => {
     render(LoginForm);
-    
-    const usernameInput = screen.getByLabelText('Username');
-    const passwordInput = screen.getByLabelText('Password');
-    const submitButton = screen.getByRole('button', { name: 'Iniciar Sesión' });
-    
-    fireEvent.input(usernameInput, { target: { value: 'testuser' } });
-    fireEvent.input(passwordInput, { target: { value: 'testpass123' } });
-    fireEvent.click(submitButton);
 
-    await waitFor(() => {
-      expect(mockAuthService.login).toHaveBeenCalledWith({
-        username: 'testuser',
-        password: 'testpass123'
-      });
-    });
-  });
+    const password = screen.getByLabelText('Contraseña');
+    expect(password).toHaveAttribute('type', 'password');
+    expect(
+      screen.queryByRole('button', { name: /mostrar|ocultar|ver contraseña/i })
+    ).not.toBeInTheDocument();
 
-  it('debería mostrar loading durante el envío', async () => {
-    mockAuthService.login.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 1000)));
-    
-    render(LoginForm);
-    
-    const submitButton = screen.getByRole('button', { name: 'Iniciar Sesión' });
-    fireEvent.click(submitButton);
-
-    // Verificar estado de loading
-    expect(submitButton).toBeDisabled();
-    expect(screen.getByText('Iniciando sesión...')).toBeInTheDocument();
-  });
-
-  it('debería manejar error de autenticación', async () => {
-    mockAuthService.login.mockRejectedValue(new Error('Credenciales inválidas'));
-
-    render(LoginForm);
-    
-    const usernameInput = screen.getByLabelText('Username');
-    const passwordInput = screen.getByLabelText('Password');
-    const submitButton = screen.getByRole('button', { name: 'Iniciar Sesión' });
-    
-    fireEvent.input(usernameInput, { target: { value: 'testuser' } });
-    fireEvent.input(passwordInput, { target: { value: 'wrongpass' } });
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('Credenciales inválidas')).toBeInTheDocument();
-      expect(submitButton).not.toBeDisabled();
-    });
-  });
-
-  it('debería redirigir al dashboard en login exitoso', async () => {
-    const mockRedirect = vi.fn();
-    vi.stubGlobal('window', {
-      location: { href: '' },
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    });
-    
-    mockAuthService.login.mockResolvedValue({
-      access_token: 'mock_token',
-      user: { id: 1, username: 'testuser' }
-    });
-
-    render(LoginForm);
-    
-    const submitButton = screen.getByRole('button', { name: 'Iniciar Sesión' });
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      // Verificar que se llama a redirección
-      expect(mockRedirect).toHaveBeenCalled();
-    });
-  });
-
-  it('debería alternar visibilidad de contraseña', () => {
-    render(LoginForm);
-    
-    const passwordInput = screen.getByLabelText('Password');
-    const toggleButton = screen.getByRole('button', { name: 'Mostrar contraseña' });
-    
-    // Estado inicial: contraseña oculta
-    expect(passwordInput).toHaveAttribute('type', 'password');
-    
-    // Click para mostrar contraseña
-    fireEvent.click(toggleButton);
-    expect(passwordInput).toHaveAttribute('type', 'text');
-    expect(toggleButton).toHaveAttribute('aria-label', 'Ocultar contraseña');
-    
-    // Click para ocultar contraseña
-    fireEvent.click(toggleButton);
-    expect(passwordInput).toHaveAttribute('type', 'password');
-    expect(toggleButton).toHaveAttribute('aria-label', 'Mostrar contraseña');
-  });
-
-  it('debería tener accesibilidad correcta', () => {
-    render(LoginForm);
-    
-    // Verificar labels y ARIA
-    const usernameInput = screen.getByLabelText('Username');
-    const passwordInput = screen.getByLabelText('Password');
-    const submitButton = screen.getByRole('button', { name: 'Iniciar Sesión' });
-    
-    expect(usernameInput).toHaveAttribute('id');
-    expect(passwordInput).toHaveAttribute('id');
-    expect(submitButton).toHaveAttribute('type', 'submit');
-    expect(submitButton).toBeEnabled();
+    await setPassword('secret');
+    expect(password).toHaveAttribute('type', 'password');
   });
 });
