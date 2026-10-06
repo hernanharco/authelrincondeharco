@@ -8,6 +8,24 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 export default defineConfig({
   // Compilar componentes .svelte dentro de los tests
   plugins: [
+    // `src/middleware.ts` importa el módulo virtual `astro:middleware`, que solo
+    // existe con el runtime de Astro. En vitest lo resolvemos con un stub mínimo
+    // (defineMiddleware es identidad: devuelve el middleware tal cual), para que
+    // `onRequest` sea directamente invocable en los tests.
+    {
+      name: 'stub-astro-middleware',
+      enforce: 'pre',
+      resolveId(id: string) {
+        if (id === 'astro:middleware') return '\0astro:middleware-stub';
+        return null;
+      },
+      load(id: string) {
+        if (id === '\0astro:middleware-stub') {
+          return 'export const defineMiddleware = (middleware) => middleware;';
+        }
+        return null;
+      },
+    },
     svelte({
       // Vitest transforma los módulos en modo SSR, lo que hace que
       // vite-plugin-svelte compile los componentes para el lado servidor
@@ -67,6 +85,12 @@ export default defineConfig({
   // Resolver para módulos
   resolve: {
     alias: {
+      // Espejo de `paths` en tsconfig.json (Vite no lee tsconfig paths solo).
+      '@utils': '/src/utils',
+      '@config': '/src/config',
+      '@components': '/src/components',
+      '@layouts': '/src/layouts',
+      '@pages': '/src/pages',
       '@': '/src',
       '$lib': '/src/lib'
     },

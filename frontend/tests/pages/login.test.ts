@@ -1,205 +1,233 @@
 /**
- * Tests para página de login
- * Renderizado completo y flujo de autenticación
+ * Tests para la página de login (src/pages/login.astro)
+ *
+ * Astro pages no se pueden renderizar con testing-library, así que aquí se
+ * testean las unidades reales que la página cablea:
+ *  - LoginForm.svelte  → comportamiento del formulario (envío, loading, éxito/error)
+ *  - AuthAlert.svelte  → manejo de los query params `status`/`error` de la URL
+ * El resto de la página es markup estático de Layout/PendingApproval/GoogleButton
+ * (GoogleButton/LoginForm-tácticos viven en tests/auth/, batch siguiente).
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/svelte';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import LoginForm from '../../src/components/auth/LoginForm.svelte';
+import AuthAlert from '../../src/components/auth/AuthAlert.svelte';
+import { authService } from '../../src/services/authService';
 
-// Mock de Astro para pages
-const mockAstro = {
-  redirect: vi.fn(),
+// La página usa este servicio vía LoginForm; lo mockeamos a nivel de módulo.
+vi.mock('../../src/services/authService', () => ({
+  authService: { login: vi.fn() },
+}));
+
+const mockLogin = vi.mocked(authService.login);
+
+// jsdom bloquea redefinir window.location; se sustituye en globalThis
+// para poder asertar la navegación que hace LoginForm tras el login.
+const originalLocationDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'location');
+function stubLocation(origin: string): { origin: string; href: string } {
+  const fake = { origin, href: '' };
+  Object.defineProperty(globalThis, 'location', {
+    value: fake,
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
+  return fake;
+}
+
+const USER = {
+  id: '1',
+  email: 'alice@example.com',
+  username: 'alice',
+  full_name: 'Alice',
+  role: 'ADMIN',
+  status: 'active',
 };
 
-describe('Login Page', () => {
+function fillForm(username = 'alice', password = 'secret') {
+  fireEvent.input(screen.getByLabelText('Nombre de usuario'), { target: { value: username } });
+  fireEvent.input(screen.getByLabelText('Contraseña'), { target: { value: password } });
+}
+
+describe('Login Page → LoginForm', () => {
+  let fakeLocation: { origin: string; href: string };
+
   beforeEach(() => {
     vi.clearAllMocks();
-    // Limpiar localStorage
     localStorage.clear();
-    // Mockear Astro
-    vi.stubGlobal('Astro', mockAstro);
+    fakeLocation = stubLocation('http://localhost:4321');
   });
 
-  it('debería renderizar página de login completa', () => {
-    // Simular renderizado de página Astro
-    const { container } = render(() => '<div>Login Page Content</div>');
-    
-    expect(container.querySelector('h1')).toHaveTextContent('Iniciar Sesión');
-    expect(container.querySelector('form')).toBeInTheDocument();
+  afterEach(() => {
+    cleanup();
   });
 
-  it('debería mostrar formulario de login tradicional', () => {
-    const { container } = render(() => '<div>LoginForm Component</div>');
-    
-    // Verificar que existe el formulario
-    expect(container.querySelector('[data-testid="login-form"]')).toBeInTheDocument();
-    expect(container.querySelector('input[name="username"]')).toBeInTheDocument();
-    expect(container.querySelector('input[name="password"]')).toBeInTheDocument();
+  afterAll(() => {
+    if (originalLocationDescriptor) {
+      Object.defineProperty(globalThis, 'location', originalLocationDescriptor);
+    }
   });
 
-  it('debería mostrar botón de Google OAuth', () => {
-    const { container } = render(() => '<div>GoogleButton Component</div>');
-    
-    // Verificar botón de Google
-    expect(container.querySelector('[data-testid="google-login"]')).toBeInTheDocument();
+  it('debería renderizar el formulario con labels accesibles', () => {
+    render(LoginForm);
+
+    expect(screen.getByLabelText('Nombre de usuario')).toBeInTheDocument();
+    expect(screen.getByLabelText('Contraseña')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Entrar al sistema' })).toBeInTheDocument();
   });
 
-  it('debería redirigir si ya está autenticado', () => {
-    // Simular usuario autenticado
-    localStorage.setItem('session', 'mock_token');
-    
-    const { container } = render(() => '<div>Login Page</div>');
-    
-    // Verificar que se llama a redirección
-    expect(mockAstro.redirect).toHaveBeenCalledWith('/dashboard');
+  it('debería tener campos obligatorios (required)', () => {
+    render(LoginForm);
+
+    expect(screen.getByLabelText('Nombre de usuario')).toBeRequired();
+    expect(screen.getByLabelText('Contraseña')).toBeRequired();
   });
 
-  it('debería manejar parámetro de estado pendiente', () => {
-    // Mockear URL con parámetro
-    vi.stubGlobal('URL', {
-      searchParams: new URLSearchParams('status=pending')
+  it('debería mantener el botón deshabilitado con campos vacíos', () => {
+    render(LoginForm);
+
+    expect(screen.getByRole('button', { name: 'Entrar al sistema' })).toBeDisabled();
+  });
+
+  it('debería habilitar el botón al completar usuario y contraseña', () => {
+    render(LoginForm);
+
+    fillForm();
+
+    expect(screen.getByRole('button', { name: 'Entrar al sistema' })).toBeEnabled();
+  });
+
+  it('debería enviar las credenciales a authService.login', async () => {
+    mockLogin.mockResolvedValue({ access_token: 'jwt', token_type: 'bearer', user: USER });
+    render(LoginForm);
+
+    fillForm('bob', 'hunter2');
+    await fireEvent.click(screen.getByRole('button', { name: 'Entrar al sistema' }));
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith({ username: 'bob', password: 'hunter2' });
     });
-
-    const { container } = render(() => '<div>Login Page</div>');
-    
-    // Verificar que muestra mensaje de pendiente
-    expect(container.querySelector('[data-testid="pending-message"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-testid="pending-message"]')).toHaveTextContent(
-      'Tu cuenta está pendiente de aprobación'
-    );
   });
 
-  it('debería manejar parámetro de error', () => {
-    // Mockear URL con parámetro de error
-    vi.stubGlobal('URL', {
-      searchParams: new URLSearchParams('error=session_expired')
-    });
+  it('debería mostrar estado de carga (Validando…, campos deshabilitados)', async () => {
+    mockLogin.mockReturnValue(new Promise(() => {})); // nunca resuelve
+    render(LoginForm);
 
-    const { container } = render(() => '<div>Login Page</div>');
-    
-    // Verificar que muestra mensaje de error
-    expect(container.querySelector('[data-testid="error-message"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-testid="error-message"]')).toHaveTextContent(
-      'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
-    );
+    fillForm();
+    await fireEvent.click(screen.getByRole('button', { name: 'Entrar al sistema' }));
+
+    expect(await screen.findByText('Validando...')).toBeInTheDocument();
+    expect(screen.getByLabelText('Nombre de usuario')).toBeDisabled();
+    expect(screen.getByLabelText('Contraseña')).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Validando/ })).toBeDisabled();
   });
 
-  it('debería limpiar mensajes al cambiar de pestaña', async () => {
-    const { container } = render(() => '<div>Login Page</div>');
-    
-    // Simular mensaje de error
-    expect(container.querySelector('[data-testid="error-message"]')).toBeInTheDocument();
-    
-    // Cambiar a otra pestaña y volver
-    Object.defineProperty(document, 'hidden', {
-      writable: true,
-      value: true
+  it('debería mostrar éxito y guardar el usuario en localStorage tras un login ok', async () => {
+    mockLogin.mockResolvedValue({ access_token: 'jwt', token_type: 'bearer', user: USER });
+    render(LoginForm);
+
+    fillForm();
+    await fireEvent.click(screen.getByRole('button', { name: 'Entrar al sistema' }));
+
+    expect(await screen.findByText('¡Sesión iniciada con éxito!')).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem('auth_user')!)).toEqual(USER);
+    expect(screen.getByRole('button', { name: 'Entrar al sistema' })).toBeEnabled();
+  });
+
+  it('debería navegar al destino relativo tras el login (redirectParam)', async () => {
+    mockLogin.mockResolvedValue({ access_token: 'jwt', token_type: 'bearer', user: USER });
+    render(LoginForm, { props: { redirectParam: '/dashboard' } });
+
+    fillForm();
+    await fireEvent.click(screen.getByRole('button', { name: 'Entrar al sistema' }));
+
+    await waitFor(() => {
+      expect(fakeLocation.href).toBe('http://localhost:4321/dashboard');
     });
-    Object.defineProperty(document, 'hidden', {
-      writable: true,
-      value: false
+  });
+
+  it('debería usar una URL absoluta de redirectParam tal cual', async () => {
+    mockLogin.mockResolvedValue({ access_token: 'jwt', token_type: 'bearer', user: USER });
+    render(LoginForm, { props: { redirectParam: 'https://otro-sitio.com/home' } });
+
+    fillForm();
+    await fireEvent.click(screen.getByRole('button', { name: 'Entrar al sistema' }));
+
+    await waitFor(() => {
+      expect(fakeLocation.href).toBe('https://otro-sitio.com/home');
+    });
+  });
+
+  it('debería mostrar el error del backend y no persistir nada si el login falla', async () => {
+    mockLogin.mockRejectedValue(new Error('Credenciales inválidas'));
+    render(LoginForm);
+
+    fillForm('wronguser', 'wrongpass');
+    await fireEvent.click(screen.getByRole('button', { name: 'Entrar al sistema' }));
+
+    expect(await screen.findByText('Credenciales inválidas')).toBeInTheDocument();
+    expect(localStorage.getItem('auth_user')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Entrar al sistema' })).toBeEnabled();
+  });
+
+  it('debería limpiar el mensaje de error al volver a escribir', async () => {
+    mockLogin.mockRejectedValue(new Error('Credenciales inválidas'));
+    render(LoginForm);
+
+    fillForm();
+    await fireEvent.click(screen.getByRole('button', { name: 'Entrar al sistema' }));
+    expect(await screen.findByText('Credenciales inválidas')).toBeInTheDocument();
+
+    await fireEvent.input(screen.getByLabelText('Nombre de usuario'), {
+      target: { value: 'alice2' },
     });
 
     await waitFor(() => {
-      // Verificar que se limpiaron los mensajes
-      expect(container.querySelector('[data-testid="error-message"]')).not.toBeInTheDocument();
+      expect(screen.queryByText('Credenciales inválidas')).not.toBeInTheDocument();
     });
   });
+});
 
-  it('debería tener metadatos SEO correctos', () => {
-    const { container } = render(() => '<div>Login Page</div>');
-    
-    // Verificar título de página
-    expect(document.title).toContain('Iniciar Sesión');
-    
-    // Verificar meta descripción
-    const metaDescription = document.querySelector('meta[name="description"]');
-    expect(metaDescription).toHaveAttribute('content', expect.stringContaining('AuthCore'));
+describe('Login Page → AuthAlert (query params status/error)', () => {
+  afterEach(() => {
+    cleanup();
   });
 
-  it('debería ser accesible', () => {
-    const { container } = render(() => '<div>Login Page</div>');
-    
-    // Verificar navegación principal
-    const main = container.querySelector('main');
-    expect(main).toHaveAttribute('role', 'main');
-    
-    // Verificar encabezado
-    const heading = container.querySelector('h1');
-    expect(heading).toHaveAttribute('tabindex', '-1');
+  it('debería mostrar aviso de cuenta pendiente con status=pending', () => {
+    render(AuthAlert, { props: { status: 'pending', error: null } });
+
+    expect(screen.getByText('Permisos Insuficientes')).toBeInTheDocument();
+    expect(screen.getByText(/Tu cuenta no tiene los permisos adecuados/)).toBeInTheDocument();
   });
 
-  it('debería tener enlaces de ayuda', () => {
-    const { container } = render(() => '<div>Login Page</div>');
-    
-    // Verificar enlaces de ayuda
-    const forgotPasswordLink = container.querySelector('a[href="/forgot-password"]');
-    const supportLink = container.querySelector('a[href="/support"]');
-    
-    expect(forgotPasswordLink).toBeInTheDocument();
-    expect(supportLink).toBeInTheDocument();
+  it('debería mostrar el mismo aviso con error=insufficient_permissions', () => {
+    render(AuthAlert, { props: { status: null, error: 'insufficient_permissions' } });
+
+    expect(screen.getByText('Permisos Insuficientes')).toBeInTheDocument();
   });
 
-  it('debería manejar envío de formulario exitoso', async () => {
-    const { container } = render(() => '<div>Login Page</div>');
-    
-    const form = container.querySelector('form');
-    const usernameInput = container.querySelector('input[name="username"]');
-    const passwordInput = container.querySelector('input[name="password"]');
-    
-    // Llenar formulario
-    fireEvent.input(usernameInput, { target: { value: 'testuser' } });
-    fireEvent.input(passwordInput, { target: { value: 'testpass123' } });
-    
-    // Enviar formulario
-    fireEvent.submit(form);
+  it('debería mostrar error de Google con error=auth_failed', () => {
+    render(AuthAlert, { props: { status: null, error: 'auth_failed' } });
+
+    expect(screen.getByText('Error de Acceso')).toBeInTheDocument();
+    expect(screen.getByText(/Hubo un problema al autenticar con Google/)).toBeInTheDocument();
+  });
+
+  it('no debería renderizar alerta para códigos sin mensaje propio', () => {
+    const { container } = render(AuthAlert, { props: { status: null, error: 'expired_token' } });
+
+    expect(container.querySelector('[role], .mb-6')).toBeNull();
+    expect(screen.queryByText('Permisos Insuficientes')).not.toBeInTheDocument();
+  });
+
+  it('debería poder descartar la alerta con el botón cerrar', async () => {
+    render(AuthAlert, { props: { status: 'pending', error: null } });
+    expect(screen.getByText('Permisos Insuficientes')).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByLabelText('Cerrar alerta'));
 
     await waitFor(() => {
-      // Verificar que se redirige al dashboard
-      expect(mockAstro.redirect).toHaveBeenCalledWith('/dashboard');
+      expect(screen.queryByText('Permisos Insuficientes')).not.toBeInTheDocument();
     });
-  });
-
-  it('debería manejar envío de formulario con error', async () => {
-    const { container } = render(() => '<div>Login Page</div>');
-    
-    const form = container.querySelector('form');
-    const usernameInput = container.querySelector('input[name="username"]');
-    const passwordInput = container.querySelector('input[name="password"]');
-    
-    // Llenar formulario con datos inválidos
-    fireEvent.input(usernameInput, { target: { value: 'wronguser' } });
-    fireEvent.input(passwordInput, { target: { value: 'wrongpass' } });
-    
-    // Enviar formulario
-    fireEvent.submit(form);
-
-    await waitFor(() => {
-      // Verificar que muestra mensaje de error
-      expect(container.querySelector('[data-testid="error-message"]')).toBeInTheDocument();
-      expect(container.querySelector('[data-testid="error-message"]')).toHaveTextContent(
-        'Credenciales inválidas'
-      );
-    });
-  });
-
-  it('debería ser responsive', () => {
-    const { container } = render(() => '<div>Login Page</div>');
-    
-    const main = container.querySelector('main');
-    
-    // Verificar clases responsive
-    expect(main).toHaveClass('min-h-screen', 'flex', 'items-center', 'justify-center');
-    
-    // Verificar contenedor del formulario
-    const formContainer = container.querySelector('[data-testid="form-container"]');
-    expect(formContainer).toHaveClass('w-full', 'max-w-md', 'mx-auto');
-  });
-
-  it('debería tener tema de modo oscuro', () => {
-    const { container } = render(() => '<div>Login Page</div>');
-    
-    // Verificar clases de tema oscuro
-    const body = container.closest('body');
-    expect(body).toHaveClass('bg-gray-900', 'text-gray-100');
   });
 });

@@ -1,6 +1,8 @@
 // src/middleware.ts
 import { defineMiddleware } from 'astro:middleware';
 import { canAccessDashboard } from '@utils/auth.roles';
+import { isPublicRoute, isProtectedRoute } from '@utils/guards';
+import { parseJwtPayload, isTokenExpired } from '@utils/jwt';
 
 // SSOT del origin — viene del entorno, nunca de headers reconstruidos
 const SITE_ORIGIN = process.env.SITE_ORIGIN || 'http://localhost:4321';
@@ -8,13 +10,9 @@ const SITE_ORIGIN = process.env.SITE_ORIGIN || 'http://localhost:4321';
 export const onRequest = defineMiddleware((context, next) => {
   const { url, cookies } = context;
 
-  const publicRoutes = ['/login', '/api/auth', '/_astro', '/favicon.ico', '/public'];
-  const isPublicRoute = publicRoutes.some(route => url.pathname.startsWith(route));
-  if (isPublicRoute) return next();
+  if (isPublicRoute(url.pathname)) return next();
 
-  const isProtectedRoute = url.pathname.startsWith('/dashboard') || url.pathname === '/';
-
-  if (isProtectedRoute) {
+  if (isProtectedRoute(url.pathname)) {
     const sessionCookie = cookies.get('access_token');
     
     if (!sessionCookie || !sessionCookie.value) {
@@ -25,18 +23,14 @@ export const onRequest = defineMiddleware((context, next) => {
     }
 
     try {
-      const parts = sessionCookie.value.split('.');
-      if (parts.length !== 3) throw new Error('JWT format invalid');
-
-      const payload = JSON.parse(atob(parts[1]));
-      const now = Math.floor(Date.now() / 1000);
-
-      if (payload.exp && payload.exp < now) {
+      if (isTokenExpired(sessionCookie.value)) {
         cookies.delete('access_token', { path: '/' });
         const expiredUrl = new URL('/login', SITE_ORIGIN);
         expiredUrl.searchParams.set('error', 'expired_token');
         return context.redirect(expiredUrl.toString(), 302);
       }
+
+      const payload = parseJwtPayload(sessionCookie.value);
 
       if (!canAccessDashboard(payload.role)) {
         return context.redirect(`${SITE_ORIGIN}/login?status=pending`, 302);
