@@ -3,8 +3,20 @@
  * Compatible con Astro + Svelte 5
  */
 import { defineConfig } from 'vitest/config';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 export default defineConfig({
+  // Compilar componentes .svelte dentro de los tests
+  plugins: [
+    svelte({
+      // Vitest transforma los módulos en modo SSR, lo que hace que
+      // vite-plugin-svelte compile los componentes para el lado servidor
+      // (`mount` no existe ahí). Forzar compilación client-side para tests.
+      dynamicCompileOptions: ({ compileOptions }) =>
+        compileOptions.generate === 'server' ? { generate: 'client' } : undefined,
+    }),
+  ],
+
   test: {
     // Entorno de testing
     environment: 'jsdom',
@@ -57,6 +69,10 @@ export default defineConfig({
     alias: {
       '@': '/src',
       '$lib': '/src/lib'
-    }
+    },
+    // Los paquetes duales (svelte: exports "browser" vs "default") se resuelven
+    // en modo SSR con condición "node", lo que carga el runtime de servidor.
+    // En tests (jsdom) necesitamos el runtime de cliente.
+    conditions: ['browser']
   }
 });
