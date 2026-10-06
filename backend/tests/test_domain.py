@@ -1,15 +1,16 @@
 """
 Tests para lógica de dominio
-Cubren reglas de negocio y validaciones de dominio
+Cubren reglas de negocio y validaciones de dominio (UserDomain).
 
-NOTA: Tests desincronizados con la implementación actual (métodos is_active/is_locked no existen, etc.)
-Se skippean hasta la estabilización arquitectónica (Fase 1).
+Reescritos contra la API actual (Fase 1):
+- `is_active()`/`is_locked()` ya no existen → `is_authenticated()`,
+  `is_pending_approval()`, `can_login()`.
+- `can_assign_role` solo permite SUPERADMIN asignar SUPERADMIN/ADMIN.
+- `can_delete` exige ser admin o superior (manager ya no elimina).
 """
 import pytest
 from app.domain.user_domain import UserDomain
 from app.models.user import User, UserRole, UserStatus
-
-pytestmark = pytest.mark.skip(reason="Necesita reescritura post-estabilización (Fase 1)")
 
 
 class TestUserDomain:
@@ -19,6 +20,7 @@ class TestUserDomain:
     def admin_user(self):
         """Usuario administrador para tests"""
         return User(
+            id=2,
             username="admin",
             email="admin@example.com",
             role=UserRole.ADMIN,
@@ -31,6 +33,7 @@ class TestUserDomain:
     def manager_user(self):
         """Usuario manager para tests"""
         return User(
+            id=3,
             username="manager",
             email="manager@example.com",
             role=UserRole.MANAGER,
@@ -43,6 +46,7 @@ class TestUserDomain:
     def regular_user(self):
         """Usuario regular para tests"""
         return User(
+            id=4,
             username="user",
             email="user@example.com",
             role=UserRole.USER,
@@ -55,6 +59,7 @@ class TestUserDomain:
     def superadmin_user(self):
         """Usuario superadmin para tests"""
         return User(
+            id=1,
             username="superadmin",
             email="superadmin@example.com",
             role=UserRole.SUPERADMIN,
@@ -62,6 +67,8 @@ class TestUserDomain:
             is_active=True,
             is_locked=False
         )
+
+    # ── Jerarquía de roles ──────────────────────────────────────
 
     def test_is_superadmin_true(self, superadmin_user):
         """Test verificación de superadmin - true"""
@@ -76,7 +83,7 @@ class TestUserDomain:
             assert domain.is_superadmin() is False
 
     def test_is_admin_true(self, admin_user, superadmin_user):
-        """Test verificación de admin - true"""
+        """Test verificación de admin - true (admin o superior)"""
         for user in [admin_user, superadmin_user]:
             domain = UserDomain(user)
             assert domain.is_admin() is True
@@ -98,6 +105,8 @@ class TestUserDomain:
         domain = UserDomain(regular_user)
         assert domain.is_manager_or_above() is False
 
+    # ── Asignación de roles ─────────────────────────────────────
+
     def test_can_assign_role_superadmin(self, superadmin_user):
         """Test asignación de roles - superadmin puede asignar cualquier rol"""
         domain = UserDomain(superadmin_user)
@@ -110,27 +119,25 @@ class TestUserDomain:
         assert domain.can_assign_role(UserRole.VIEWER) is True
 
     def test_can_assign_role_admin(self, admin_user):
-        """Test asignación de roles - admin puede asignar roles hasta su nivel"""
+        """Test asignación de roles - solo SUPERADMIN asigna SUPERADMIN/ADMIN"""
         domain = UserDomain(admin_user)
 
-        # Admin puede asignar roles hasta su nivel
-        assert domain.can_assign_role(UserRole.ADMIN) is True
+        # Admin puede asignar roles por debajo de su nivel...
         assert domain.can_assign_role(UserRole.MANAGER) is True
         assert domain.can_assign_role(UserRole.USER) is True
         assert domain.can_assign_role(UserRole.VIEWER) is True
 
-        # Admin NO puede asignar SuperAdmin
+        # ... pero NO SUPERADMIN ni ADMIN (exclusivo de SUPERADMIN)
         assert domain.can_assign_role(UserRole.SUPERADMIN) is False
+        assert domain.can_assign_role(UserRole.ADMIN) is False
 
     def test_can_assign_role_manager(self, manager_user):
-        """Test asignación de roles - manager puede asignar roles básicos"""
+        """Test asignación de roles - manager no puede asignar roles (no es admin)"""
         domain = UserDomain(manager_user)
 
-        # Manager puede asignar roles básicos
-        assert domain.can_assign_role(UserRole.USER) is True
-        assert domain.can_assign_role(UserRole.VIEWER) is True
-
-        # Manager NO puede asignar roles de gestión
+        # Manager no es admin: no puede asignar ningún rol
+        assert domain.can_assign_role(UserRole.USER) is False
+        assert domain.can_assign_role(UserRole.VIEWER) is False
         assert domain.can_assign_role(UserRole.MANAGER) is False
         assert domain.can_assign_role(UserRole.ADMIN) is False
         assert domain.can_assign_role(UserRole.SUPERADMIN) is False
@@ -146,8 +153,10 @@ class TestUserDomain:
         assert domain.can_assign_role(UserRole.ADMIN) is False
         assert domain.can_assign_role(UserRole.SUPERADMIN) is False
 
+    # ── Eliminación de usuarios ─────────────────────────────────
+
     def test_can_delete_user_superadmin(self, superadmin_user, admin_user, manager_user, regular_user):
-        """Test eliminación de usuarios - superadmin puede eliminar a todos menos a sí mismo"""
+        """Test eliminación - superadmin puede eliminar a todos menos a sí mismo"""
         domain = UserDomain(superadmin_user)
 
         # Superadmin puede eliminar a todos los demás
@@ -158,60 +167,118 @@ class TestUserDomain:
         # Superadmin NO puede eliminarse a sí mismo
         assert domain.can_delete(superadmin_user) is False
 
-    def test_can_delete_user_admin(self, admin_user, manager_user, regular_user):
-        """Test eliminación de usuarios - admin puede eliminar a roles inferiores"""
+    def test_can_delete_user_admin(self, admin_user, superadmin_user, manager_user, regular_user):
+        """Test eliminación - admin elimina roles inferiores, nunca a un superadmin"""
         domain = UserDomain(admin_user)
 
         # Admin puede eliminar a roles inferiores
         assert domain.can_delete(manager_user) is True
         assert domain.can_delete(regular_user) is True
 
+        # Admin NO puede eliminar a un superadmin
+        assert domain.can_delete(superadmin_user) is False
+
         # Admin NO puede eliminarse a sí mismo
         assert domain.can_delete(admin_user) is False
 
     def test_can_delete_user_manager(self, manager_user, regular_user):
-        """Test eliminación de usuarios - manager puede eliminar solo a usuarios regulares"""
+        """Test eliminación - manager no es admin: no puede eliminar a nadie"""
         domain = UserDomain(manager_user)
 
-        # Manager puede eliminar a usuarios regulares
-        assert domain.can_delete(regular_user) is True
+        # Manager no tiene permiso de eliminación
+        assert domain.can_delete(regular_user) is False
 
-        # Manager NO puede eliminarse a sí mismo
+        # Tampoco a sí mismo
         assert domain.can_delete(manager_user) is False
 
     def test_can_delete_user_regular(self, regular_user):
-        """Test eliminación de usuarios - usuario regular no puede eliminar"""
+        """Test eliminación - usuario regular no puede eliminar"""
         domain = UserDomain(regular_user)
 
         # Usuario regular no puede eliminar a nadie
         assert domain.can_delete(regular_user) is False
 
-    def test_is_active_user(self, admin_user):
-        """Test verificación de usuario activo"""
+    # ── Estado de autenticación (is_authenticated) ──────────────
+
+    def test_is_authenticated_active_user(self, admin_user):
+        """Usuario activo y con status ACTIVE está autenticado"""
         domain = UserDomain(admin_user)
 
-        assert domain.is_active() is True
+        assert domain.is_authenticated() is True
 
-    def test_is_inactive_user(self, admin_user):
-        """Test verificación de usuario inactivo"""
+    def test_is_not_authenticated_inactive_user(self, admin_user):
+        """Usuario con is_active=False no está autenticado"""
         admin_user.is_active = False
         domain = UserDomain(admin_user)
 
-        assert domain.is_active() is False
+        assert domain.is_authenticated() is False
 
-    def test_is_locked_user(self, admin_user):
-        """Test verificación de usuario bloqueado"""
+    def test_is_not_authenticated_non_active_status(self, admin_user):
+        """Usuario activo pero con status distinto de ACTIVE no está autenticado"""
+        admin_user.status = UserStatus.SUSPENDED
+        domain = UserDomain(admin_user)
+
+        assert domain.is_authenticated() is False
+
+    # ── Login permitido (can_login) ─────────────────────────────
+
+    def test_can_login_active_user(self, regular_user):
+        """Usuario activo, ACTIVE, con rol y sin bloqueo puede login"""
+        domain = UserDomain(regular_user)
+
+        assert domain.can_login() is True
+
+    def test_can_login_locked_user(self, admin_user):
+        """Usuario bloqueado no puede iniciar sesión"""
         admin_user.is_locked = True
         domain = UserDomain(admin_user)
 
-        assert domain.is_locked() is True
+        assert domain.can_login() is False
 
-    def test_is_unlocked_user(self, admin_user):
-        """Test verificación de usuario desbloqueado"""
-        admin_user.is_locked = False
+    def test_can_login_inactive_user(self, admin_user):
+        """Usuario inactivo no puede iniciar sesión"""
+        admin_user.is_active = False
         domain = UserDomain(admin_user)
 
-        assert domain.is_locked() is False
+        assert domain.can_login() is False
+
+    def test_can_login_pending_user(self, admin_user):
+        """Usuario con status PENDING no puede iniciar sesión"""
+        admin_user.status = UserStatus.PENDING
+        domain = UserDomain(admin_user)
+
+        assert domain.can_login() is False
+
+    def test_can_login_user_without_role(self, regular_user):
+        """Usuario con rol NONE no puede iniciar sesión"""
+        regular_user.role = UserRole.NONE
+        domain = UserDomain(regular_user)
+
+        assert domain.can_login() is False
+
+    # ── Aprobación pendiente (is_pending_approval) ──────────────
+
+    def test_is_pending_approval_status_pending(self, regular_user):
+        """Usuario con status PENDING está pendiente de aprobación"""
+        regular_user.status = UserStatus.PENDING
+        domain = UserDomain(regular_user)
+
+        assert domain.is_pending_approval() is True
+
+    def test_is_pending_approval_role_none(self, regular_user):
+        """Usuario con rol NONE está pendiente de aprobación"""
+        regular_user.role = UserRole.NONE
+        domain = UserDomain(regular_user)
+
+        assert domain.is_pending_approval() is True
+
+    def test_is_not_pending_approval_active_user(self, regular_user):
+        """Usuario ACTIVE con rol asignado no está pendiente de aprobación"""
+        domain = UserDomain(regular_user)
+
+        assert domain.is_pending_approval() is False
+
+    # ── Jerarquía y casos edge ──────────────────────────────────
 
     def test_user_hierarchy(self):
         """Test jerarquía de usuarios"""
@@ -227,6 +294,7 @@ class TestUserDomain:
 
         for role, level in hierarchy.items():
             user = User(
+                id=level,
                 username=f"user_{role.value.lower()}",
                 email=f"{role.value.lower()}@example.com",
                 role=role,
@@ -239,17 +307,30 @@ class TestUserDomain:
             # Verificar que el dominio puede determinar el nivel correctamente
             if role == UserRole.SUPERADMIN:
                 assert domain.is_superadmin() is True
-            elif role == UserRole.ADMIN:
                 assert domain.is_admin() is True
-            elif role == UserRole.MANAGER:
                 assert domain.is_manager_or_above() is True
+            elif role == UserRole.ADMIN:
+                assert domain.is_superadmin() is False
+                assert domain.is_admin() is True
+                assert domain.is_manager_or_above() is True
+            elif role == UserRole.MANAGER:
+                assert domain.is_superadmin() is False
+                assert domain.is_admin() is False
+                assert domain.is_manager_or_above() is True
+            else:
+                # USER, VIEWER y NONE no alcanzan nivel de gestión
+                assert domain.is_superadmin() is False
+                assert domain.is_admin() is False
+                assert domain.is_manager_or_above() is False
 
     def test_edge_cases(self):
         """Test casos edge y validaciones"""
         # Usuario sin rol
         user_no_role = User(
+            id=10,
             username="norole",
             email="norole@example.com",
+            role=UserRole.NONE,
             status=UserStatus.ACTIVE,
             is_active=True,
             is_locked=False
@@ -260,9 +341,12 @@ class TestUserDomain:
         assert domain.is_superadmin() is False
         assert domain.is_admin() is False
         assert domain.is_manager_or_above() is False
+        # ... y está pendiente de aprobación
+        assert domain.is_pending_approval() is True
 
         # Usuario inactivo
         user_inactive = User(
+            id=11,
             username="inactive",
             email="inactive@example.com",
             role=UserRole.USER,
@@ -272,6 +356,9 @@ class TestUserDomain:
         )
         domain_inactive = UserDomain(user_inactive)
 
-        # Usuario inactivo no debe tener permisos aunque tenga rol
-        assert domain_inactive.is_active() is False
-        # Los otros métodos deben considerar el estado activo
+        # Usuario inactivo no está autenticado ni puede loguear,
+        # aunque tenga rol asignado
+        assert domain_inactive.is_authenticated() is False
+        assert domain_inactive.can_login() is False
+        # Los métodos de permisos dependen solo del rol
+        assert domain_inactive.is_admin() is False

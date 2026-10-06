@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import StaticPool
 
 from app.main import app
+from app.core.ratelimit import limiter
 from app.db.session import get_db
 from app.models.base import Base
 
@@ -80,6 +81,22 @@ async def db():
     await _create_tables()
     yield
     await _drop_tables()
+
+
+@pytest.fixture(autouse=True)
+def disable_rate_limiter():
+    """Desactiva slowapi durante cada test.
+
+    `app.state.limiter` es la MISMA instancia global que decoran los
+    endpoints (p.ej. /login con LIMIT_LOGIN = 10/minute). Sin este override,
+    los tests de login repetidos de la suite (misma IP clave: X-Forwarded-For
+    o 127.0.0.1) devolverían 429. `Limiter._check_request_limit` hace return
+    temprano cuando `enabled` es False; restauramos el valor previo.
+    """
+    previous = limiter.enabled
+    limiter.enabled = False
+    yield
+    limiter.enabled = previous
 
 
 @pytest_asyncio.fixture

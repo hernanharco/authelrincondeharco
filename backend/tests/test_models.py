@@ -1,14 +1,16 @@
 """
 Tests para modelos de base de datos
-Cubren validaciones de SQLAlchemy y relaciones
+Cubren estructura de columnas, defaults y representación del modelo User.
 
-NOTA: Tests desincronizados con la implementación actual (User requiere full_name, etc.)
-Se skippean hasta la estabilización arquitectónica (Fase 1).
+Reescritos contra el modelo actual (Fase 1):
+- `full_name` es NOT NULL; defaults de columna (role=USER, status=PENDING,
+  is_active=False) se aplican al flush, no en `__init__`.
+- `__repr__` muestra solo username + role (sin email).
+- Eliminado `test_user_validation`: SQLAlchemy valida al flush, no en el
+  constructor.
 """
 import pytest
 from app.models.user import User, UserRole, UserStatus
-
-pytestmark = pytest.mark.skip(reason="Necesita reescritura post-estabilización (Fase 1)")
 
 
 class TestUserModel:
@@ -35,30 +37,51 @@ class TestUserModel:
         assert user.is_active is True
         assert user.is_locked is False
 
-    def test_user_defaults(self):
-        """Test valores por defecto del modelo"""
+    def test_user_column_defaults(self):
+        """Test valores por defecto de columna (se aplican al flush)"""
+        # Los defaults viven en la definición de columna, no en __init__
+        columns = User.__table__.columns
+
+        assert columns["role"].default.arg == UserRole.USER
+        assert columns["status"].default.arg == UserStatus.PENDING
+        assert columns["is_active"].default.arg is False
+        assert columns["is_locked"].default.arg is False
+        assert columns["failed_login_attempts"].default.arg == 0
+        assert columns["login_count"].default.arg == 0
+
+        # Antes del flush, los atributos aún no tienen el default aplicado
         user = User(
             username="testuser",
             email="test@example.com",
             password_hash="$2b$12$hashed_password"
         )
+        assert user.role is None
+        assert user.status is None
+        assert user.failed_login_attempts is None
 
-        # Verificar valores por defecto
-        assert user.role is not None  # Debe tener rol por defecto
-        assert user.status is not None  # Debe tener estado por defecto
-        assert user.failed_login_attempts == 0  # Debe inicializar en 0
+    def test_user_not_null_columns(self):
+        """Test columnas obligatorias (NOT NULL)"""
+        columns = User.__table__.columns
+
+        assert columns["username"].nullable is False
+        assert columns["email"].nullable is False
+        assert columns["password_hash"].nullable is False
+        assert columns["full_name"].nullable is False
 
     def test_user_repr(self):
-        """Test representación string del usuario"""
+        """Test representación string del usuario (solo username y role)"""
         user = User(
             username="testuser",
             email="test@example.com",
-            full_name="Test User"
+            full_name="Test User",
+            role=UserRole.USER
         )
 
         repr_str = repr(user)
         assert "testuser" in repr_str
-        assert "test@example.com" in repr_str
+        assert "USER" in repr_str
+        # El repr actual no incluye el email
+        assert "test@example.com" not in repr_str
 
     def test_user_to_dict(self):
         """Test conversión a diccionario"""
@@ -93,20 +116,6 @@ class TestUserModel:
         assert UserStatus.INACTIVE.value == "INACTIVE"
         assert UserStatus.SUSPENDED.value == "SUSPENDED"
         assert UserStatus.PENDING.value == "PENDING"
-
-    def test_user_validation(self):
-        """Test validaciones del modelo"""
-        # Username requerido
-        with pytest.raises(Exception):
-            user = User(email="test@example.com", password_hash="hash")
-
-        # Email requerido
-        with pytest.raises(Exception):
-            user = User(username="testuser", password_hash="hash")
-
-        # Password hash requerido
-        with pytest.raises(Exception):
-            user = User(username="testuser", email="test@example.com")
 
     def test_user_timestamps(self):
         """Test timestamps automáticos"""
@@ -172,7 +181,7 @@ class TestUserModel:
         assert isinstance(user.failed_login_attempts, int)
 
     def test_user_optional_fields(self):
-        """Test campos opcionales"""
+        """Test campos opcionales (full_name es NOT NULL, ya no es opcional)"""
         user = User(
             username="testuser",
             email="test@example.com",
@@ -180,7 +189,6 @@ class TestUserModel:
         )
 
         # Campos opcionales pueden ser None
-        assert user.full_name is None or isinstance(user.full_name, str)
         assert user.last_login is None
         assert user.last_ip is None
         assert user.notes is None
