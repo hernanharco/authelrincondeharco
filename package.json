@@ -2,6 +2,9 @@
   "name": "authcore",
   "private": true,
   "scripts": {
-    "deploy": "bash scripts/deploy.sh"
+    "deploy": "bash scripts/deploy.sh",
+    "test": "pnpm run test:backend && pnpm run test:frontend",
+    "test:backend": "cd backend && poetry run python -m pytest -q",
+    "test:frontend": "cd frontend && pnpm test:run"
   }
 }
