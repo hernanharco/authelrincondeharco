@@ -12,9 +12,10 @@ Deriva vs la suite original (Fase 1):
 - El fixture viejo `mock_google_oauth` parcheaba `GoogleOAuthService.get_user_info`
   (firma muerta: ahora `get_user_info(token)`); ahora se parchea
   `exchange_code(code, redirect_uri)` — Authorization Code Flow, sin red.
-- Comportamiento real de /login: responde JSON con `access_token` y NO setea
-  cookie (la cookie httpOnly solo la pone el callback de Google). Se codifica
-  el JSON; la cookie se valida en el callback.
+- Comportamiento de /login (prod-hardening H2): responde JSON con
+  `access_token` (sin cambios, backward compatible) Y setea la cookie
+  httpOnly `access_token` con los mismos parámetros que el callback de Google
+  (Max-Age = ACCESS_TOKEN_EXPIRE_MINUTES*60, SameSite/Secure por entorno).
 - Nuevo test de rate limit: /login es 10/minute (slowapi); el override de
   conftest (`disable_rate_limiter`) debe impedir el 429 en la suite.
 
@@ -78,6 +79,47 @@ class TestAuthEndpoints:
         response = await client.post("/api/v1/auth/login", json=login_data.model_dump())
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_login_success_sets_httponly_cookie(self, client, db_session, test_user):
+        """Prod-hardening H2: login exitoso setea cookie `access_token` httpOnly
+        con los MISMOS parámetros que el callback Google (Max-Age =
+        ACCESS_TOKEN_EXPIRE_MINUTES*60 = 120 min, SameSite/Secure por entorno).
+        El body JSON no cambia (backward compatibility).
+        """
+        db_session.add(test_user)
+        await db_session.commit()
+
+        login_data = LoginRequest(username="testuser", password="testpass")
+        response = await client.post("/api/v1/auth/login", json=login_data.model_dump())
+
+        assert response.status_code == status.HTTP_200_OK
+        # El body JSON se mantiene intacto (backward compat)
+        data = response.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
+
+        # Cookie presente con atributos httpOnly y Max-Age = 120 min
+        set_cookie = response.headers.get("set-cookie", "")
+        assert "access_token=" in set_cookie
+        assert "httponly" in set_cookie.lower()
+        match = re.search(r"max-age=(\d+)", set_cookie, re.IGNORECASE)
+        assert match is not None, f"sin Max-Age en: {set_cookie}"
+        expected = settings.access_token_expire_minutes * 60  # 120*60 = 7200
+        # tolerancia ≤5s: expires_in se trunca a entero segundos desde la emisión
+        assert abs(int(match.group(1)) - expected) <= 5, (
+            f"Max-Age {match.group(1)} != {expected}"
+        )
+
+    async def test_login_failure_sets_no_cookie(self, client, db_session, test_user):
+        """Prod-hardening H2: login con credenciales inválidas NO setea cookie."""
+        db_session.add(test_user)
+        await db_session.commit()
+
+        login_data = LoginRequest(username="testuser", password="wrongpass")
+        response = await client.post("/api/v1/auth/login", json=login_data.model_dump())
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert "set-cookie" not in response.headers
 
     async def test_repeated_logins_do_not_rate_limit(self, client, db_session, test_user):
         """/login está limitado a 10/minute (slowapi).

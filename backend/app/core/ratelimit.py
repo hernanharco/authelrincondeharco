@@ -1,7 +1,11 @@
 """
 Rate Limiting para authCore.
-Usa slowapi con almacenamiento en memoria.
-En producción, reemplazar por Redis (slowapi lo soporta via `storage_uri`).
+Usa slowapi con almacenamiento configurable via `storage_uri`
+(settings.ratelimit_storage_uri / env RATELIMIT_STORAGE_URI):
+- "memory://" (default): dev y tests, sin dependencias externas.
+- "redis://": producción (contador compartido entre instancias/restarts).
+La conexión a Redis es perezosa (limits la abre al primer uso), así que
+importar este módulo no requiere un servidor Redis en marcha.
 
 Protege endpoints críticos como /login contra ataques de fuerza bruta.
 """
@@ -10,6 +14,8 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+
+from app.core.config import settings
 
 
 def _get_client_ip(request) -> str:
@@ -38,5 +44,6 @@ LIMIT_API_GENERAL = "100/minute"  # API general: máximo 100 requests por minuto
 limiter = Limiter(
     key_func=_get_client_ip,
     default_limits=[LIMIT_API_GENERAL],
+    storage_uri=settings.ratelimit_storage_uri,
     enabled=True,
 )

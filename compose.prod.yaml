@@ -68,6 +68,9 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
 
+      # Rate limiting (slowapi → Redis)
+      RATELIMIT_STORAGE_URI: redis://redis:6379
+
       # CORS — incluir todos los spokes + frontend de authCore
       CORS_ORIGINS: ${CORS_ORIGINS}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-https://authcore.vercel.app}
@@ -80,11 +83,30 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     deploy:
       resources:
         limits:
           memory: 256M
           cpus: "0.5"
+
+  # ── Redis (rate limiting) ────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
 
   # ── Frontend Astro ──────────────────────────────────────────
   # NOTA: El frontend se deploya a Vercel.
@@ -116,3 +138,4 @@ services:
 
 volumes:
   pgdata:
+  redisdata:

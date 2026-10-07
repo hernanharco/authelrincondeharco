@@ -59,6 +59,11 @@ class Settings(BaseSettings):
             f"sslmode={self.pg_sslmode}"
         )
 
+    # --- Rate Limiting (slowapi) ---
+    # "memory://" (default): almacenamiento en memoria, sin dependencias
+    # externas — dev/test. En producción usar "redis://host:puerto".
+    ratelimit_storage_uri: str = Field("memory://", alias="RATELIMIT_STORAGE_URI")
+
     # --- JWT Settings ---
     access_token_expire_minutes: int = Field(120, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     algorithm: str = Field("RS256", alias="ALGORITHM")

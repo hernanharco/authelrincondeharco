@@ -293,6 +293,9 @@ PGUSER=tu-usuario
 PGPASSWORD=tu-password
 BACKEND_URL=https://tu-backend.com
 FRONTEND_ORIGIN=https://tu-frontend.com
+# Rate limiting (slowapi): por defecto "memory://" (dev/test sin Redis).
+# En producción, apuntar al servicio Redis de compose:
+RATELIMIT_STORAGE_URI=redis://redis:6379
 
 # Frontend  
 PUBLIC_BACKEND_URL=https://tu-backend.com  # URL del backend para el navegador

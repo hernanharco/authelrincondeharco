@@ -3,12 +3,16 @@ Endpoint de Login - Principio de Responsabilidad Única
 Protegido con rate limiting para prevenir ataques de fuerza bruta.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from urllib.parse import urlparse
+
 from app.schemas.user import UserLoginResponse
 from app.schemas.auth import LoginRequest
 from app.interfaces.auth.IAuthService import IAuthService
 from app.api.v1.dependencies import get_auth_service
+from app.core.config import settings
 from app.core.ratelimit import limiter, LIMIT_LOGIN
+from app.api.v1.endpoints.auth.google import FRONTEND_URL
 
 router = APIRouter()
 
@@ -16,6 +20,7 @@ router = APIRouter()
 @limiter.limit(LIMIT_LOGIN)
 async def login(
     request: Request,
+    response: Response,
     credentials: LoginRequest,
     auth_service: IAuthService = Depends(get_auth_service),
 ):
@@ -46,6 +51,21 @@ async def login(
 
         # Generar token
         token, expires_in = await auth_service.create_access_token(user)
+
+        # Setear cookie httpOnly (mismos parámetros que el callback Google)
+        is_prod = settings.is_production
+        frontend_host = urlparse(FRONTEND_URL).hostname or "localhost"
+        cookie_domain = f".{frontend_host.split('.', 1)[1]}" if is_prod else "localhost"
+        response.set_cookie(
+            key="access_token",
+            value=token,
+            httponly=True,
+            max_age=expires_in,
+            path="/",
+            samesite="none" if is_prod else "lax",
+            secure=is_prod,
+            domain=cookie_domain,
+        )
 
         return UserLoginResponse(
             access_token=token, token_type="bearer", expires_in=expires_in, user=user
