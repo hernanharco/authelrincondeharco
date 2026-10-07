@@ -16,6 +16,10 @@
 - [x] **H2 — Cookie en login**: TDD — tests primero (worker capturó RED, timeout del worker), guard `if False` eliminado en recuperación, GREEN 26/26. Cookie idéntica a Google callback.
 - [x] **H3 — Verificación**: import OK sin Redis; **240 tests / 0 failed / 0 skipped, coverage 87.04% gate PASS**; compose `config -q` OK (ambos); frontend 107 ✅.
 
+## Follow-up (post-review R4)
+
+- [ ] **H4 — Redis runtime degradation**: finding `R4-redis-no-runtime-degradation` (review review-d627b2421ce0c735, stop terminal). Si Redis cae con `storage_uri=redis://`, slowapi/limits lanza excepción → 500 en /login. Fix: storage con fallback a memoria en fallos de Redis + tests TDD.
+
 ## Evidence (commits)
 
 - Evidence: `b0cbea8` feat: harden session cookie and rate-limit storage
