@@ -1,6 +1,6 @@
 # Feature: Prod Hardening (Fase 3)
 
-**Status:** in_progress
+**Status:** done (Fase 3 completa)
 **Source:** backlog de Fase 1/2 + decisiones de producto del usuario
 **Started:** 2026-10-07
 
@@ -12,17 +12,23 @@
 
 ## Tasks
 
-- [ ] **H1 — Redis rate limit**: config `RATELIMIT_STORAGE_URI` (default memory://), env redis:// en prod, cliente `redis` como dependencia, servicio redis en compose.prod.yaml (+ compose.yaml dev opcional), docs env.
-- [ ] **H2 — Cookie en login**: `login.py` setea `access_token` httpOnly con mismos parámetros que Google callback (max_age=120min, SameSite/Secure por entorno); TDD: test RED primero (Set-Cookie presente + httponly), luego fix, GREEN.
-- [ ] **H3 — Verificación**: suite backend verde (227+test nuevo, 0 skipped, gate 80%), frontend 107 verde (no debe romperse: login sigue devolviendo JSON), compose YAML válido.
+- [x] **H1 — Redis rate limit**: `RATELIMIT_STORAGE_URI` (default memory://), `storage_uri` en Limiter, redis ^8.1.0, servicios redis en compose.prod (healthcheck+volume) y compose.yaml (dev), docs README.
+- [x] **H2 — Cookie en login**: TDD — tests primero (worker capturó RED, timeout del worker), guard `if False` eliminado en recuperación, GREEN 26/26. Cookie idéntica a Google callback.
+- [x] **H3 — Verificación**: import OK sin Redis; **240 tests / 0 failed / 0 skipped, coverage 87.04% gate PASS**; compose `config -q` OK (ambos); frontend 107 ✅.
 
 ## Evidence (commits)
 
-- (pendiente)
+- Evidence: `b0cbea8` feat: harden session cookie and rate-limit storage
+
+## Incidentes
+
+- Worker `muxoh8p9` timeout (30 min bash colgado por fsync): código quedó escrito; guard RED `if False` eliminado y poetry lock resuelto en recuperación inline.
+- **Sesión paralela** escribió `data_token.py` + `test_data_token.py` + `auth/__init__.py` durante la fase (carrera en test.db causó failures transitorios); NO commiteados aquí. Sus 11 tests: verdes.
+- Backlog: `backend/poetry.lock` en .gitignore (sin build reproducible); Redis runtime no ejercitado (solo lazy import).
 
 ## Success Criteria
 
-- [ ] `POST /auth/login` → response incluye `Set-Cookie: access_token=…; HttpOnly`
-- [ ] Ratelimit storage configurable vía env; default memory (tests sin Redis)
-- [ ] compose.prod.yaml define servicio redis
-- [ ] Backend: 0 failed/0 skipped, gate pass; frontend 107 pass
+- [x] `POST /auth/login` → response incluye `Set-Cookie: access_token=…; HttpOnly` ✅
+- [x] Ratelimit storage configurable vía env; default memory (tests sin Redis) ✅
+- [x] compose.prod.yaml define servicio redis ✅ (config -q OK)
+- [x] Backend: 0 failed/0 skipped, gate pass (240/87.04%); frontend 107 pass ✅
