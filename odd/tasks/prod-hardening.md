@@ -18,11 +18,12 @@
 
 ## Follow-up (post-review R4)
 
-- [ ] **H4 — Redis runtime degradation**: finding `R4-redis-no-runtime-degradation` (review review-d627b2421ce0c735, stop terminal). Si Redis cae con `storage_uri=redis://`, slowapi/limits lanza excepción → 500 en /login. Fix: storage con fallback a memoria en fallos de Redis + tests TDD.
+- [x] **H4 — Redis runtime degradation**: `ResilientStorage` (esquema `redis-fallback://`) en ratelimit.py + 12 tests (TDD: RED ImportError/caracterización, GREEN 12). 252 tests / 0 failed / 86.66% gate. Commit: (ver Evidence).
 
 ## Evidence (commits)
 
 - Evidence: `b0cbea8` feat: harden session cookie and rate-limit storage
+- Evidence H4: `22d17ad` fix: degrade rate limiting to memory when Redis is unreachable
 
 ## Incidentes
 
