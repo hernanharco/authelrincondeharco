@@ -51,11 +51,21 @@ Per-slice git revert (tests-only slices safe). Prod fixes isolated in one slice;
 - `pnpm install` (node_modules absent); add `@sveltejs/vite-plugin-svelte` devDep.
 
 ## Success Criteria
-- [ ] Backend suite green via `pytest -q --no-cov`, module skips removed.
-- [ ] `pnpm test:run` green after infra fix.
-- [ ] `/users/search` and `/users/{id}/activity` → 200 (no AttributeError).
-- [ ] DELETE → returns deleted user; GET after → 404.
-- [ ] ADMIN `/users/pending` → 200; USER → 403.
+- [x] Backend suite green via `pytest -q --no-cov`, module skips removed. → **227 passed, 0 skipped** (run as `python -m pytest`; bare `pytest` breaks sys.path).
+- [x] `pnpm test:run` green after infra fix. → **107 tests / 9 suites green**.
+- [x] `/users/search` and `/users/{id}/activity` → 200 (no AttributeError). → **200/200**.
+- [x] DELETE → returns deleted user; GET after → 404. → **200 (deleted user body) → 404**.
+- [x] ADMIN `/users/pending` → 200; USER → 403. → **200/403 confirmed**.
+
+## Outcome
+Change delivered in 6 commits `39aec50..27015fa` (inclusive): `39aec50` prod fixes (repository methods, DELETE/pending semantics), `5066527` backend suite rewrites, `6b82ad0` frontend vitest infra, `88bb7f5` auth utils + suites, `614a86d` component suites, `27015fa` coverage gate activation.
+
+Final numbers: backend **227 tests, 0 skipped, 86.22% coverage** (target was ≥80%); frontend **107 tests / 9 suites** green.
+
+Deviations from scope:
+- Coverage target reached **86.22%** (forecast: just clearing the 80% gate).
+- `backend/tests/pytest.ini` coverage gate was **inert** (pytest reads `backend/pyproject.toml` when run from `backend/`; the `.ini` `[tool:pytest]` section never applied) → gate moved to `pyproject.toml` `[tool.pytest.ini_options] addopts` (`--cov-fail-under=80`).
+- **Gate activation added as in-scope** (was implicit in the original 80% gate intent but not listed).
 
 ## Proposal Question Round
 1. DELETE response: 200 with deleted-user body, or 204?

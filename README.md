@@ -2,12 +2,12 @@
 
 ## 🚀 Visión General
 
-AuthCore es un sistema completo de autenticación y gestión de usuarios construido con **FastAPI + Astro + Svelte 5**, siguiendo principios **SOLID** y arquitectura moderna. Proporciona autenticación tradicional, Google OAuth 2.0, gestión de roles y un dashboard administrativo totalmente funcional.
+AuthCore es un sistema completo de autenticación y gestión de usuarios construido con **FastAPI + Astro + Svelte 5**, siguiendo principios **SOLID** y arquitectura moderna. Proporciona autenticación tradicional, Google OAuth 2.0, gestión de roles, **multi-tenant** (organizaciones con selección de tenant) y un dashboard administrativo totalmente funcional.
 
 ## 🏗️ Stack Tecnológico
 
 ### Backend (FastAPI)
-- **Framework**: FastAPI 0.128.0 con Python 3.10+
+- **Framework**: FastAPI 0.128.0 con Python 3.10+ (pyproject `^3.10`; runtime y Docker en 3.12)
 - **Base de Datos**: PostgreSQL con SQLAlchemy 2.0
 - **ORM**: SQLAlchemy 2.0 con Psycopg3
 - **Autenticación**: JWT + bcrypt + Google OAuth 2.0
@@ -37,7 +37,16 @@ AuthCore es un sistema completo de autenticación y gestión de usuarios constru
 - **Estados**: ACTIVE, INACTIVE, SUSPENDED, PENDING
 - **CRUD Completo**: Crear, leer, actualizar, eliminar usuarios
 - **Filtros**: Por rol, estado, origen, búsqueda
+- **Búsqueda/Actividad**: `GET /users/search` y `GET /users/{id}/activity`
 - **Aprobación**: Panel dedicado para usuarios pendientes
+
+### 🏢 Multi-tenant
+- **Tenants**: CRUD de organizaciones (`/api/v1/tenants`) con módulos asignados
+- **Módulos**: Catálogo `/api/v1/modules` y asignación por tenant (`/api/v1/tenant-modules`)
+- **Asignaciones**: `GET /api/v1/users/me/tenants` y `POST /api/v1/users/select-tenant`
+- **Selección de tenant**: pantalla `/select-tenant` tras el login de usuario normal
+- **SUPERADMIN**: ve y gestiona todos los tenants (bypass en asignaciones)
+- **Perfil de empresa**: `/api/v1/company` (perfil propio y de otros usuarios)
 
 ### 📊 Dashboard Administrativo
 - **Panel Principal**: Estadísticas en tiempo real
@@ -47,7 +56,8 @@ AuthCore es un sistema completo de autenticación y gestión de usuarios constru
 - **Detalle de Usuario**: Edición completa con validaciones
 
 ### 🛡️ Seguridad
-- **JWT**: Expiración configurable (30 min default)
+- **JWT**: RS256, expiración configurable (120 min default, `ACCESS_TOKEN_EXPIRE_MINUTES`)
+- **JWKS**: Clave pública en `GET /.well-known/jwks.json`
 - **bcrypt**: Password hashing seguro
 - **RBAC**: Role-based Access Control
 - **Validaciones**: Inyección SQL, XSS, CSRF
@@ -59,13 +69,14 @@ AuthCore es un sistema completo de autenticación y gestión de usuarios constru
 authCore/
 ├── backend/                    # FastAPI Backend
 │   ├── app/
-│   │   ├── api/v1/            # Endpoints API
+│   │   ├── api/v1/            # Endpoints (auth, users, tenants, modules, company)
 │   │   ├── core/               # Configuración
 │   │   ├── domain/             # Lógica de dominio
 │   │   ├── interfaces/          # Contratos SOLID
 │   │   ├── models/             # Modelos SQLAlchemy
 │   │   ├── repositories/        # Acceso a datos
-│   │   ├── services/           # Lógica de negocio
+│   │   ├── schemas/            # Schemas Pydantic
+│   │   ├── services/           # Lógica de negocio (query/update/validation por dominio)
 │   │   └── types/             # Enums y tipos
 │   ├── tests/                 # Tests unitarios e integración
 │   └── pyproject.toml         # Dependencias Poetry
@@ -77,16 +88,21 @@ authCore/
 │   │   ├── pages/             # Rutas Astro
 │   │   ├── services/          # Servicios cliente
 │   │   ├── styles/            # Estilos TailwindCSS
-│   │   └── utils/             # Utilidades
+│   │   ├── utils/             # Utilidades (jwt, guards, auth.roles)
+│   │   └── middleware.ts      # Auth de rutas (cookie access_token)
+│   ├── tests/                 # 9 suites vitest (107 tests)
 │   ├── astro.config.mjs        # Configuración Astro
 │   └── package.json          # Dependencias pnpm
+├── openspec/                  # Cambios OpenSpec (changes/, specs/)
+├── odd/                       # Documentos de features (ODD)
+├── scripts/                   # Operación (deploy.sh)
 └── README.md                  # Este archivo
 ```
 
 ## 🚀 Quick Start
 
 ### Prerrequisitos
-- **Python**: 3.10+ con Poetry instalado
+- **Python**: 3.10+ con Poetry instalado (pyproject `^3.10`; el proyecto corre en 3.12)
 - **Node.js**: 22.12.0+ con pnpm
 - **PostgreSQL**: Base de datos configurada
 
@@ -100,9 +116,6 @@ poetry shell                      # Activar entorno
 cp .env.example .env
 # Editar .env con tus credenciales
 
-# Crear usuario de prueba
-python create_test_user.py --create
-
 # Iniciar servidor
 poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
@@ -112,8 +125,8 @@ poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 cd frontend
 pnpm install                    # Instalar dependencias
 
-# Configurar variables de entorno
-echo "PUBLIC_GOOGLE_CLIENT_ID=tu_google_client_id" > .env.local
+# Configurar variables de entorno (URL del backend para el navegador)
+echo "PUBLIC_BACKEND_URL=http://localhost:8001" > .env.local
 
 # Iniciar servidor
 pnpm dev                        # http://localhost:4321
@@ -125,34 +138,30 @@ pnpm dev                        # http://localhost:4321
 - **Documentación**: http://localhost:8001/docs
 - **Health Check**: http://localhost:8001/health
 
-## 🔐 Credenciales de Prueba
+## 🔐 Usuarios de Prueba
 
-### Usuario Administrador
-- **Username**: `testuser`
-- **Password**: `testpass`
-- **Rol**: ADMIN
-
-### Google OAuth
-- Configura `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` en `.env`
+- El repo no incluye un seed de usuarios: créalos con `POST /api/v1/users/` o regístralos vía Google OAuth
 - Los usuarios nuevos de Google se crean con rol `NONE` y estado `PENDING`
 - Requieren aprobación de un administrador
+
+### Google OAuth
+- Configura `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` en `backend/.env`
 
 ## 🎯 Flujo de Usuario
 
 ### 1. Login Tradicional
 1. Ingresar username/password
-2. Validación en backend
-3. Generación de JWT
-4. Almacenamiento en cookie httpOnly
-5. Redirección al dashboard
+2. `POST /api/v1/auth/login` valida en backend
+3. Generación de JWT (RS256, 120 min)
+4. El token se devuelve en JSON — **no** se setea cookie en este endpoint
 
 ### 2. Google OAuth
 1. Click en "Iniciar con Google"
-2. Popup de Google OAuth
-3. Autorización y callback
-4. Si es usuario nuevo → estado PENDING
-5. Si existe → login directo
-6. Almacenamiento de credenciales
+2. Redirect a `GET /api/v1/auth/google` (popup/redirect OAuth)
+3. Autorización y `GET /api/v1/auth/callback`
+4. Si es usuario nuevo → estado PENDING (redirect a `/login?status=pending`)
+5. Si existe → setea cookie httpOnly `access_token` (120 min)
+6. Redirección: SUPERADMIN → `/dashboard`, resto → `/select-tenant` (destinos externos reciben `?token=`)
 
 ### 3. Dashboard Administrativo
 1. **Panel Principal**: Estadísticas generales
@@ -204,28 +213,31 @@ NONE        ⬆️  Sin rol (usuarios nuevos de Google)
 ### Backend Tests
 ```bash
 cd backend
-pytest                           # Todos los tests
-pytest -v                        # Verboso
-pytest --cov=app                 # Con cobertura
-pytest -m unit                    # Unit tests
-pytest -m integration            # Integration tests
+python -m pytest                   # Suite completa (227 tests) — usar `python -m pytest`, no `pytest` suelto
+python -m pytest -v                # Verboso
+python -m pytest tests/test_domain.py  # Un módulo
+python -m pytest -m unit           # Unit tests
+python -m pytest -m integration    # Integration tests
 ```
+- Gate de cobertura **activo**: `--cov-fail-under=80` en `backend/pyproject.toml` (addopts); cualquier run ya mide cobertura.
+- Cobertura actual: **86.22%** (227 tests, 0 skipped).
 
 ### Frontend Tests
 ```bash
 cd frontend
-# Tests de componentes (pendiente de implementación)
-npm test                          # Unit tests
-npm run test:e2e                  # E2E tests con Playwright
+pnpm test:run                      # Vitest en una pasada (107 tests / 9 suites)
+pnpm test                          # Vitest en watch
 ```
+- Suites en `frontend/tests/` (middleware, login, authService, componentes, utils).
+- E2E (Playwright): pendiente de implementar.
 
 ## 📦 Endpoints API Principales
 
 ### Autenticación
-- `POST /api/v1/auth/login` - Login tradicional
+- `POST /api/v1/auth/login` - Login tradicional (devuelve token en JSON, sin cookie)
 - `GET /api/v1/auth/google` - Iniciar OAuth
-- `GET /api/v1/auth/callback` - Callback OAuth
-- `POST /api/v1/auth/logout` - Cerrar sesión
+- `GET /api/v1/auth/callback` - Callback OAuth (setea cookie httpOnly `access_token`)
+- `POST /api/v1/auth/dev-login` - Login rápido de desarrollo (403 en producción)
 
 ### Usuarios
 - `GET /api/v1/users/` - Listar usuarios
@@ -241,6 +253,21 @@ npm run test:e2e                  # E2E tests con Playwright
 - `GET /api/v1/users/stats` - Estadísticas generales
 - `GET /api/v1/users/pending` - Usuarios pendientes
 - `GET /api/v1/users/by-origin` - Usuarios por origen
+- `GET /api/v1/users/search` - Búsqueda de usuarios
+- `GET /api/v1/users/{id}/activity` - Resumen de actividad de un usuario
+
+### Multi-tenant
+- `GET/POST/PUT/DELETE /api/v1/tenants/` - CRUD de tenants (más `GET /tenants/by-slug/{slug}`)
+- `GET/POST/PUT/DELETE /api/v1/modules/` - Catálogo de módulos
+- `GET/POST/PUT/DELETE /api/v1/tenant-modules/tenants/{id}/modules` - Módulos por tenant
+- `GET /api/v1/users/me/tenants` - Tenants del usuario actual
+- `POST /api/v1/users/select-tenant` - Seleccionar tenant (devuelve token con tenant)
+
+### Empresa y claves
+- `GET/PUT /api/v1/company/me` - Perfil de empresa propio (además de `/company/`, `/company/{user_id}`)
+- `GET /.well-known/jwks.json` - JWKS (clave pública RS256)
+
+> El cierre de sesión lo maneja el frontend (`/logout` borra la cookie `access_token`).
 
 ## 🌐 Despliegue
 
@@ -268,8 +295,9 @@ BACKEND_URL=https://tu-backend.com
 FRONTEND_ORIGIN=https://tu-frontend.com
 
 # Frontend  
-BACKEND_URL=https://tu-backend.com
-PUBLIC_GOOGLE_CLIENT_ID=tu-client-id-produccion
+PUBLIC_BACKEND_URL=https://tu-backend.com  # URL del backend para el navegador
+# En Docker/SSR: API_TARGET=http://backend:8000
+# Middleware: SITE_ORIGIN=https://tu-frontend.com
 ```
 
 ## 🔧 Configuración Avanzada
@@ -321,21 +349,21 @@ CORS_ORIGINS="*"
 - ✅ **Backend**: FastAPI con PostgreSQL completo
 - ✅ **Frontend**: Astro + Svelte 5 con dashboard
 - ✅ **Autenticación**: Login tradicional + Google OAuth
+- ✅ **Multi-tenant**: Tenants, módulos, asignaciones y switching
 - ✅ **Gestión de Usuarios**: CRUD completo con roles
 - ✅ **Dashboard**: Panel administrativo funcional
 - ✅ **Seguridad**: JWT, bcrypt, CORS, validaciones
 - ✅ **Arquitectura**: SOLID con inyección de dependencias
-- ✅ **Testing**: Suite de tests backend
+- ✅ **Testing**: 227 tests backend / 107 frontend, cobertura 86.22% (gate 80% activo)
 - ✅ **Documentación**: Swagger UI + README completo
 
 ### 🔄 En Desarrollo
-- 🔄 **Tests Frontend**: Unit tests y E2E con Playwright
+- 🔄 **E2E**: Tests end-to-end con Playwright
 - 🔄 **Analytics**: Métricas de uso del sistema
 - 🔄 **Auditoría**: Logs de acciones administrativas
 - 🔄 **Notificaciones**: Email para usuarios pendientes
 
 ### 🚀 Próximas Features
-- 🚀 **Multi-tenant**: Aislamiento por organización
 - 🔄 **2FA**: Autenticación de dos factores
 - 🔄 **SSO Additional**: Microsoft, GitHub OAuth
 - 🔄 **API Rate Limiting**: Límites por usuario
@@ -370,10 +398,10 @@ black .                          # Formatear código
 isort .                          # Ordenar imports
 flake8 .                         # Linting
 mypy .                           # Type checking
-pytest --cov=app                 # Tests con cobertura
+python -m pytest                 # Tests con cobertura (gate 80%)
 
 # Frontend
-pnpm check                       # Verificación Astro
+pnpm test:run                    # Tests vitest
 pnpm build                       # Build producción
 ```
 

@@ -1,43 +1,68 @@
-# Astro Starter Kit: Minimal
+# AuthCore — Frontend (Astro + Svelte 5)
 
-```sh
-pnpm create astro@latest -- --template minimal
-```
+Dashboard de administración de authCore: páginas server-rendered con **Astro 6** e islas interactivas en **Svelte 5** (Runes), styling con **TailwindCSS 4** y tipado con **TypeScript 5**. El frontend consume el backend FastAPI (`backend/`) y protege las rutas del dashboard mediante un middleware que valida la cookie httpOnly `access_token` (JWT RS256).
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+## Comandos
 
-## 🚀 Project Structure
+| Comando | Acción |
+| :------ | :----- |
+| `pnpm install` | Instalar dependencias |
+| `pnpm dev` | Dev server en `localhost:4321` |
+| `pnpm build` | Build de producción |
+| `pnpm preview` | Previsualizar el build |
+| `pnpm test:run` | Tests vitest (una pasada; 107 tests / 9 suites) |
+| `pnpm test` | Tests vitest en watch |
+| `pnpm test:coverage` | Tests con cobertura (v8) |
+| `pnpm astro ...` | CLI de Astro (`pnpm astro -- --help`) |
 
-Inside of your Astro project, you'll see the following folders and files:
+## Estructura de `src/`
 
 ```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
+src/
+├── components/
+│   ├── auth/          # LoginForm, GoogleButton, PendingApproval, AuthAlert
+│   ├── common/        # Icon
+│   └── dashboard/     # UsersTable, StatsCard, RoleBadge, CompanyProfileForm, ...
+├── config/
+│   └── api.config.ts  # URLs de la API (BACKEND_URL, ENDPOINTS)
+├── data/
+│   └── countryCodes.ts
+├── layouts/           # Layouts Astro
+├── pages/             # Rutas Astro (index, login, logout, select-tenant,
+│                      #   dashboard/, api/ endpoints server-side)
+├── services/
+│   └── authService.ts # Cliente HTTP de autenticación
+├── styles/            # global.css (Tailwind)
+├── utils/             # jwt.ts, guards.ts, auth.roles.ts, date.ts (lógica pura)
+└── middleware.ts      # Auth de rutas: valida cookie access_token y rol
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+## Tests
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+Los tests viven en `frontend/tests/` (no dentro de `src/`), corren con **vitest** +
+jsdom + @testing-library/svelte:
 
-Any static assets, like images, can be placed in the `public/` directory.
+- `tests/middleware.test.ts`, `tests/pages/login.test.ts`
+- `tests/services/authService.test.ts`
+- `tests/auth/` (GoogleButton, LoginForm), `tests/dashboard/` (StatsCard, UsersTable)
+- `tests/utils/` (jwt, guards)
 
-## 🧞 Commands
+```bash
+pnpm test:run
+```
 
-All commands are run from the root of the project, from a terminal:
+## Variables de entorno
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `pnpm install`             | Installs dependencies                            |
-| `pnpm dev`             | Starts local dev server at `localhost:4321`      |
-| `pnpm build`           | Build your production site to `./dist/`          |
-| `pnpm preview`         | Preview your build locally, before deploying     |
-| `pnpm astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `pnpm astro -- --help` | Get help using the Astro CLI                     |
+- `PUBLIC_BACKEND_URL`: URL del backend para el navegador (default `http://localhost:8000`).
+- `API_TARGET`: URL del backend en SSR (dentro del contenedor Docker).
+- El OAuth de Google se configura **en el backend** (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+  en `backend/.env`); el frontend solo redirige a `GET /api/v1/auth/google`.
+- `SITE_ORIGIN`: origen del sitio para el middleware (default `http://localhost:4321`).
 
-## 👀 Want to learn more?
+## Flujo de sesión resumido
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+1. Login tradicional (`POST /api/v1/auth/login`) → token en JSON, sin cookie.
+2. Google OAuth (`GET /api/v1/auth/google` → callback) → el backend setea la cookie
+   httpOnly `access_token` (120 min) y redirige a `/dashboard` o `/select-tenant`.
+3. `src/middleware.ts` exige cookie `access_token` válida (no expirada) y rol con
+   acceso al dashboard en las rutas protegidas.
