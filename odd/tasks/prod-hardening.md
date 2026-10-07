@@ -24,6 +24,7 @@
 
 - Evidence: `b0cbea8` feat: harden session cookie and rate-limit storage
 - Evidence H4: `22d17ad` fix: degrade rate limiting to memory when Redis is unreachable
+- Review RDD: `review-2c1c644e76fb494b` → **APPROVED** (tier medium, lens reliability, ack quemado). Advisory no bloqueantes: R3-001 WARNING ratelimit.py:200, R3-002 SUGGESTION ratelimit.py:186 (backlog). Linaje previo `review-d627b2421ce0c735` (alto, 4 lenses) quedó escalated/stop por fallo de transporte en reliability — su finding R4 motivó H4.
 
 ## Incidentes
 
