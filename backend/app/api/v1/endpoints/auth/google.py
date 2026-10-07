@@ -60,6 +60,24 @@ def _get_frontend_redirect(state: str = "") -> str:
         return default
 
 
+def _status_or_error_redirect(state: str, query: str) -> RedirectResponse:
+    """
+    Redirect de post-login no exitoso (pending / error) con `query` ya codificada
+    ("status=pending" o "error=...").
+
+    Si el flujo vino de un spoke — es decir, `_get_frontend_redirect(state)`
+    resuelve a un redirect_to con origin distinto de FRONTEND_URL — se
+    redirige a ese redirect_to conservando la query que el spoke entiende.
+    Si no hay redirect_to (o es same-origin/relativo), se mantiene el destino
+    histórico: FRONTEND_URL/login. Nunca se añade el token.
+    """
+    redirect_dest = _get_frontend_redirect(state)
+    if redirect_dest.startswith(FRONTEND_URL):
+        redirect_dest = f"{FRONTEND_URL}/login"
+    separator = "&" if "?" in redirect_dest else "?"
+    return RedirectResponse(url=f"{redirect_dest}{separator}{query}")
+
+
 @router.get("/callback")
 async def google_callback(
     code: str,
@@ -137,16 +155,14 @@ async def google_callback(
     except HTTPException as e:
         if e.detail == "PENDING_APPROVAL":
             logging.info(f"⏳ Nuevo usuario registrado vía Google: pendiente de aprobación")
-            return RedirectResponse(
-                url=f"{FRONTEND_URL}/login?status=pending"
-            )
+            return _status_or_error_redirect(state, "status=pending")
 
         logging.error(f"❌ Error en Google Callback: {e.detail}")
-        return RedirectResponse(
-            url=f"{FRONTEND_URL}/login?error={urlencode({'detail': str(e.detail)})}"
+        return _status_or_error_redirect(
+            state, f"error={urlencode({'detail': str(e.detail)})}"
         )
     except Exception as e:
         logging.error(f"❌ Error en Google Callback: {str(e)}")
-        return RedirectResponse(
-            url=f"{FRONTEND_URL}/login?error={urlencode({'detail': 'Error técnico al procesar el login'})}"
+        return _status_or_error_redirect(
+            state, f"error={urlencode({'detail': 'Error técnico al procesar el login'})}"
         )

@@ -40,7 +40,11 @@ async def login(
     try:
         # Autenticar usuario
         user = await auth_service.authenticate_user(
-            credentials.username, credentials.password
+            credentials.username,
+            credentials.password,
+            # Contraseña correcta + cuenta inactiva → 403 PENDING_APPROVAL
+            # (diferente de las credenciales inválidas → 401 de abajo)
+            raise_on_pending=True,
         )
 
         if not user:

@@ -43,7 +43,12 @@ class AuthService(IAuthService):
         self.tenant_repository = tenant_repository
         self.tenant_module_service = tenant_module_service
 
-    async def authenticate_user(self, username: str, password: str) -> Optional[User]:
+    async def authenticate_user(
+        self,
+        username: str,
+        password: str,
+        raise_on_pending: bool = False,
+    ) -> Optional[User]:
         """
         Autentica un usuario con credenciales tradicionales.
 
@@ -51,6 +56,13 @@ class AuthService(IAuthService):
         - Incrementa failed_login_attempts en cada fallo
         - Bloquea la cuenta al superar MAX_FAILED_LOGIN_ATTEMPTS
         - Resetea el contador al iniciar sesión exitosamente
+
+        Args:
+            raise_on_pending: Si True y la contraseña es correcta pero la
+                cuenta está inactiva/pendiente, lanza 403 PENDING_APPROVAL
+                en lugar de devolver None (así el endpoint de login puede
+                distinguir "pendiente" de "credenciales incorrectas" sin
+                alterar el contrato 401 por defecto).
         """
         user = await self.user_repository.get_by_username(username)
         if not user:
@@ -85,6 +97,11 @@ class AuthService(IAuthService):
             })
 
         if not user.is_active:
+            if raise_on_pending:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="PENDING_APPROVAL",
+                )
             return None
 
         return user
