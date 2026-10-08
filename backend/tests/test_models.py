@@ -10,6 +10,8 @@ Reescritos contra el modelo actual (Fase 1):
   constructor.
 """
 import pytest
+from sqlalchemy import Boolean, Date, DateTime, Integer, Numeric, String, Time
+from app.models.base import Base
 from app.models.user import User, UserRole, UserStatus
 
 
@@ -214,3 +216,55 @@ class TestUserModel:
             password_hash="$2b$12$hashed_password"
         )
         assert len(user.email) == len(long_email)
+
+
+class TestIntegridadForeignKeys:
+    """Tests de integridad referencial a nivel de metadatos"""
+
+    @staticmethod
+    def _familia(tipo):
+        """Agrupa tipos de columna en familias comparables (String, Integer, ...)"""
+        if isinstance(tipo, String):
+            return "string"
+        if isinstance(tipo, Boolean):
+            return "boolean"
+        if isinstance(tipo, Integer):
+            return "integer"
+        if isinstance(tipo, Numeric):
+            return "numeric"
+        # Ojo con el orden: DateTime subclasea Date en SQLAlchemy
+        if isinstance(tipo, DateTime):
+            return "datetime"
+        if isinstance(tipo, Date):
+            return "date"
+        if isinstance(tipo, Time):
+            return "time"
+        return type(tipo).__name__
+
+    def test_foreign_keys_apuntan_a_columnas_compatibles(self):
+        """Test que cada ForeignKey apunta a una columna de tipo compatible
+
+        PostgreSQL rechaza crear una FK si los tipos no son compatibles
+        (p. ej. VARCHAR -> INTEGER). SQLite no lo valida, así que verificamos
+        los metadatos directamente.
+        """
+        incompatibles = []
+
+        for nombre_tabla, tabla in Base.metadata.tables.items():
+            for columna in tabla.columns:
+                for fk in columna.foreign_keys:
+                    destino = fk.column  # resuelve contra Base.metadata
+                    familia_origen = self._familia(columna.type)
+                    familia_destino = self._familia(destino.type)
+                    if familia_origen != familia_destino:
+                        incompatibles.append(
+                            f"{nombre_tabla}.{columna.name} "
+                            f"({familia_origen}) -> "
+                            f"{destino.table.name}.{destino.name} "
+                            f"({familia_destino})"
+                        )
+
+        assert not incompatibles, (
+            "Foreign keys con tipos de columna incompatibles:\n"
+            + "\n".join(incompatibles)
+        )

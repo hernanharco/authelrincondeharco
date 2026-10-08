@@ -4,7 +4,7 @@ Tabla intermedia N:M entre Users y Tenants.
 Un usuario puede pertenecer a múltiples tenants con diferentes roles.
 """
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -26,7 +26,7 @@ class UserTenant(Base):
     )
 
     user_id = Column(
-        String(36),
+        Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
