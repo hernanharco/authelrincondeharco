@@ -4,7 +4,7 @@ Servicio de Actualización de Usuarios - Principio de Responsabilidad Única
 
 from typing import Dict, Any
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.types.enums import UserRole, UserStatus
 from app.core.security import get_password_hash
@@ -18,7 +18,7 @@ class UserUpdateService:
     SRP: Única responsabilidad = modificar datos de usuarios.
     """
 
-    def __init__(self, db: Session, user_repository: IUserRepository):
+    def __init__(self, db: AsyncSession, user_repository: IUserRepository):
         self.db = db
         self.user_repository = user_repository
 
@@ -137,7 +137,8 @@ class UserUpdateService:
         UserValidationService.validate_permission_to_update(current_user, user_id)
 
         # Solo permitir campos de perfil no sensibles
-        allowed_fields = ["first_name", "last_name", "phone", "bio", "avatar_url"]
+        # NOTA: CompanyProfile (Fase 2) tendrá empresa, CIF, dirección, IBAN, etc.
+        allowed_fields = ["avatar_url"]
         filtered_data = {k: v for k, v in profile_data.items() if k in allowed_fields}
 
         return await self.user_repository.update(user_id, filtered_data)
@@ -157,10 +158,8 @@ class UserUpdateService:
 
         password_hash = get_password_hash(new_password)
 
-        # Opcional: marcar como que debe cambiar contraseña en próximo login
         update_data = {
             "password_hash": password_hash,
-            "must_change_password": True,
             "failed_login_attempts": 0,
             "is_locked": False,
         }

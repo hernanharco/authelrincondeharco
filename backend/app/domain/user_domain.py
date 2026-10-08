@@ -4,17 +4,33 @@ Responsabilidad única: reglas de negocio sobre el estado de un usuario.
 No conoce la BD, no conoce FastAPI, no conoce schemas.
 """
 
+from typing import Protocol, runtime_checkable
+
 from app.types.enums import UserRole, UserStatus
-from app.models.user import User
+
+
+@runtime_checkable
+class UserEntity(Protocol):
+    """
+    Protocolo que define los atributos mínimos que necesita UserDomain.
+    Cualquier objeto que tenga estos atributos (incluyendo el modelo ORM User)
+    cumple con este protocolo — no hay dependencia hacia SQLAlchemy.
+    """
+    id: int
+    role: UserRole
+    status: UserStatus
+    is_active: bool
+    is_locked: bool
 
 
 class UserDomain:
     """
     Encapsula las reglas de negocio relacionadas con un usuario.
-    Se instancia pasando un objeto User del ORM.
+    Trabaja con cualquier objeto que cumpla UserEntity (Protocol),
+    lo que permite desacoplarlo del ORM.
     """
 
-    def __init__(self, user: User):
+    def __init__(self, user: UserEntity):
         self._user = user
 
     def is_authenticated(self) -> bool:
@@ -65,7 +81,7 @@ class UserDomain:
             return self._user.role == UserRole.SUPERADMIN
         return self.is_admin()
 
-    def can_delete(self, target: User) -> bool:
+    def can_delete(self, target: UserEntity) -> bool:
         """
         Un ADMIN no puede eliminar a un SUPERADMIN.
         Nadie puede eliminarse a sí mismo.

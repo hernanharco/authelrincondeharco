@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════
+#  .gitignore — authCore
+# ═══════════════════════════════════════════════
+
+# ── Secretos ─────────────────────────────────
+.env
+.env.*
+!env.example
+*.pem
+config.ts
+oauth-manager*.json
+
+# ── Node ─────────────────────────────────────
+node_modules/
+dist/
+.vercel/
+
+# ── Python ───────────────────────────────────
+__pycache__/
+*.pyc
+.venv/
+.venv*/
+*.egg-info/
+
+# ── IDE ──────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Sistema ──────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+*.tmp

@@ -5,6 +5,7 @@ import StatsCard from '../../components/dashboard/StatsCard.svelte';
 import UserAvatar from '../../components/dashboard/UserAvatar.svelte';
 import OriginBadge from '../../components/dashboard/OriginBadge.svelte';
 import Icon from '../../components/common/Icon.svelte';
+import TenantUsageTable from '../../components/dashboard/TenantUsageTable.svelte';
 import { getRelativeTime } from '../../utils/date';
 import { apiUrl, ENDPOINTS } from '../../config/api.config';
 
@@ -14,9 +15,10 @@ const token = Astro.cookies.get('access_token')!.value;
 let stats = null;
 let recentUsers = [];
 let pendingUsers = [];
+let tenantUsage: any[] | null = null;
 
 try {
-	const [statsRes, recentRes, pendingRes] = await Promise.all([
+	const [statsRes, recentRes, pendingRes, usageRes] = await Promise.all([
 		fetch(apiUrl(ENDPOINTS.users.stats), {
 			headers: { Authorization: `Bearer ${token}` },
 		}),
@@ -26,6 +28,9 @@ try {
 		fetch(apiUrl(ENDPOINTS.users.pending), {
 			headers: { Authorization: `Bearer ${token}` },
 		}),
+		fetch(apiUrl(ENDPOINTS.tenants.usage), {
+			headers: { Authorization: `Bearer ${token}` },
+		}),
 	]);
 
 	// En lugar de redirigir, dejar que el middleware maneje el 401
@@ -33,6 +38,8 @@ try {
 	if (statsRes.ok) stats = await statsRes.json();
 	if (recentRes.ok) recentUsers = await recentRes.json();
 	if (pendingRes.ok) pendingUsers = await pendingRes.json();
+	// Si falla (403/500), tenantUsage queda null y la card no se renderiza
+	if (usageRes.ok) tenantUsage = await usageRes.json();
 } catch (e) {
 	console.error(e);
 }
@@ -187,6 +194,16 @@ try {
 					</table>
 				</div>
 			</div>
+
+			<!-- Uso por tenants -->
+			{
+				tenantUsage && (
+					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+						<h3 class="text-lg font-semibold text-[#F9FAFB] mb-4">Uso por tenants</h3>
+						<TenantUsageTable usage={tenantUsage} />
+					</div>
+				)
+			}
 
 			<!-- Quick Actions -->
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

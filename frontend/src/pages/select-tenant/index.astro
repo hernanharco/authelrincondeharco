@@ -1,0 +1,144 @@
+---
+export const prerender = false;
+import Layout from '../../layouts/Layout.astro';
+import { apiUrl, ENDPOINTS } from '../../config/api.config';
+
+const token = Astro.cookies.get('access_token')?.value;
+if (!token) {
+	return Astro.redirect('/login');
+}
+
+let tenants: any[] = [];
+let error = '';
+
+try {
+	const res = await fetch(apiUrl(ENDPOINTS.users.me + '/tenants'), {
+		headers: { Authorization: `Bearer ${token}` },
+	});
+
+	if (res.status === 401) return Astro.redirect('/login');
+	if (res.ok) {
+		tenants = await res.json();
+	}
+
+	// Si solo tiene 1 tenant, redirigir directamente
+	if (tenants.length === 1) {
+		const selectRes = await fetch(apiUrl('/api/v1/auth/select-tenant'), {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify({ tenant_id: tenants[0].tenant_id }),
+		});
+
+		if (selectRes.ok) {
+			const data = await selectRes.json();
+			Astro.cookies.set('access_token', data.access_token, {
+				path: '/',
+				maxAge: data.expires_in,
+				httpOnly: true,
+				sameSite: 'none',
+				secure: true,
+			});
+			return Astro.redirect('/dashboard');
+		}
+	}
+
+	// Si no tiene tenants
+	if (tenants.length === 0) {
+		error = 'No tienes acceso a ninguna empresa. Contacta al administrador.';
+	}
+} catch (e) {
+	error = 'Error al cargar tus empresas';
+	console.error(e);
+}
+---
+
+<Layout title="Seleccionar Empresa">
+	<main class="min-h-screen flex items-center justify-center bg-[#0F1117] px-4 py-12">
+		<div class="max-w-md w-full">
+			<div class="text-center mb-8">
+				<div class="mx-auto h-12 w-12 bg-[#6366F1] rounded-xl flex items-center justify-center shadow-lg mb-4">
+					<svg class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+					</svg>
+				</div>
+				<h1 class="text-3xl font-bold text-[#F9FAFB]">¿A qué empresa querés entrar?</h1>
+				<p class="mt-2 text-sm text-[#9CA3AF]">Tenés acceso a {tenants.length} empresa{tenants.length !== 1 ? 's' : ''}</p>
+			</div>
+
+			{error && (
+				<div class="bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-lg p-4 mb-6">
+					<p class="text-[#EF4444] text-sm text-center">{error}</p>
+				</div>
+			)}
+
+			<div class="space-y-3">
+				{tenants.map((ut: any) => (
+					<button
+						class="tenant-btn w-full bg-[#1E2130] border border-[#2D3148] rounded-xl p-5 text-left hover:border-[#6366F1] hover:bg-[#2D3148]/50 transition-all cursor-pointer group"
+						data-tenant-id={ut.tenant_id}
+					>
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-4">
+								<div class="w-12 h-12 bg-[#6366F1]/20 rounded-xl flex items-center justify-center text-[#6366F1] font-bold text-lg group-hover:bg-[#6366F1]/30 transition-colors">
+									{ut.tenant_name.charAt(0).toUpperCase()}
+								</div>
+								<div>
+									<div class="text-[#F9FAFB] font-semibold">{ut.tenant_name}</div>
+									<div class="text-xs text-[#9CA3AF] mt-0.5">Rol: {ut.role}</div>
+								</div>
+							</div>
+							<svg class="w-5 h-5 text-[#6B7280] group-hover:text-[#6366F1] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+							</svg>
+						</div>
+					</button>
+				))}
+			</div>
+
+			<div class="mt-8 text-center">
+				<a href="/logout" class="text-sm text-[#6B7280] hover:text-[#9CA3AF] transition-colors">
+					Cerrar sesión
+				</a>
+			</div>
+		</div>
+	</main>
+
+	<script>
+		document.querySelectorAll('.tenant-btn').forEach(btn => {
+			btn.addEventListener('click', async () => {
+				const tenantId = (btn as HTMLElement).dataset.tenantId;
+				if (!tenantId) return;
+
+				btn.disabled = true;
+				(btn as HTMLElement).style.opacity = '0.5';
+
+				try {
+					const token = document.cookie.split('; ').find(r => r.startsWith('access_token='))?.split('=')[1];
+					const backendUrl = import.meta.env.PUBLIC_BACKEND_URL || 'http://localhost:8000';
+
+					const res = await fetch(`${backendUrl}/api/v1/auth/select-tenant`, {
+						method: 'POST',
+						headers: {
+							'Authorization': `Bearer ${token}`,
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ tenant_id: tenantId }),
+					});
+
+					if (!res.ok) throw new Error('Error selecting tenant');
+
+					const data = await res.json();
+
+					// Replace the cookie with the new tenant-scoped token
+					document.cookie = `access_token=${data.access_token}; path=/; max-age=${data.expires_in}; samesite=none; secure`;
+
+					window.location.href = '/dashboard';
+				} catch (err) {
+					alert('Error al seleccionar empresa');
+					btn.disabled = false;
+					(btn as HTMLElement).style.opacity = '1';
+				}
+			});
+		});
+	</script>
+</Layout>

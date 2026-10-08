@@ -1,179 +1,129 @@
 /**
  * Tests para componente StatsCard
- * Renderizado de estadísticas y accesibilidad
+ *
+ * Contrato real (src/components/dashboard/StatsCard.svelte): props `title`,
+ * `value` (string | number, renderizado TAL CUAL sin formateo), `iconName`
+ * opcional, `trend` { value, isPositive } y `color`
+ * (primary|success|warning|danger|muted) que decide las clases del contenedor
+ * del icono. No hay testids, ni role/aria-label, ni formateo numérico.
+ *
+ * Intentos descartados de la versión anterior (comportamiento inexistente):
+ * props `icon`/`color` con valores arbitrarios ("blue", "green"), testids
+ * `stats-card`/`stats-icon`, formateo "1.23M", role="article"/aria-label,
+ * etiquetas H3, clases Tailwind fijas de la tarjeta y clases responsive.
  */
-import { render, screen } from '@testing-library/svelte';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/svelte';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import StatsCard from '../../src/components/dashboard/StatsCard.svelte';
 
+function iconBox(container: HTMLElement): HTMLElement | null {
+  return container.querySelector<HTMLElement>('[style*="48px"]');
+}
+
 describe('StatsCard', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  afterEach(() => {
+    cleanup();
   });
 
-  it('debería renderizar tarjeta con título y valor', () => {
-    const { getByTestId } = render(StatsCard, {
-      props: {
-        title: 'Usuarios Activos',
-        value: 150,
-        icon: 'users',
-        color: 'blue'
-      }
-    });
+  it('debería renderizar título y valor numérico', () => {
+    render(StatsCard, { props: { title: 'Usuarios Activos', value: 150 } });
 
-    expect(screen.getByText('Usuarios Activos')).toBeInTheDocument();
-    expect(screen.getByText('150')).toBeInTheDocument();
+    const title = screen.getByText('Usuarios Activos');
+    const value = screen.getByText('150');
+    expect(title.tagName).toBe('P');
+    expect(value.tagName).toBe('P');
   });
 
-  it('debería renderizar ícono correctamente', () => {
-    const { getByTestId } = render(StatsCard, {
-      props: {
-        title: 'Total Usuarios',
-        value: 500,
-        icon: 'users',
-        color: 'green'
-      }
-    });
+  it('debería renderizar el valor tal cual, sin formateo numérico', () => {
+    render(StatsCard, { props: { title: 'Total Sesiones', value: 1234567 } });
 
-    const icon = getByTestId('stats-icon');
-    expect(icon).toBeInTheDocument();
-    expect(icon).toHaveClass('icon-users');
+    expect(screen.getByText('1234567')).toBeInTheDocument();
+    expect(screen.queryByText(/1\.23M/)).not.toBeInTheDocument();
   });
 
-  it('debería aplicar clases de color correctas', () => {
-    const { getByTestId } = render(StatsCard, {
-      props: {
-        title: 'Usuarios Pendientes',
-        value: 25,
-        icon: 'pending',
-        color: 'yellow'
-      }
-    });
-
-    const card = getByTestId('stats-card');
-    expect(card).toHaveClass('bg-yellow-100', 'border-yellow-200');
-  });
-
-  it('debería mostrar valor formateado para números grandes', () => {
-    const { getByTestId } = render(StatsCard, {
-      props: {
-        title: 'Total Sesiones',
-        value: 1234567,
-        icon: 'sessions',
-        color: 'purple'
-      }
-    });
-
-    // Debería formatear el número (ej: 1.23M)
-    expect(screen.getByText(/1\.23M/)).toBeInTheDocument();
-  });
-
-  it('debería manejar valor cero correctamente', () => {
-    const { getByTestId } = render(StatsCard, {
-      props: {
-        title: 'Nuevos Usuarios',
-        value: 0,
-        icon: 'new',
-        color: 'gray'
-      }
-    });
+  it('debería manejar el valor cero correctamente', () => {
+    render(StatsCard, { props: { title: 'Nuevos Usuarios', value: 0 } });
 
     expect(screen.getByText('0')).toBeInTheDocument();
-    
-    const card = getByTestId('stats-card');
-    expect(card).toHaveClass('bg-gray-100');
   });
 
-  it('debería ser accesible', () => {
-    const { getByTestId } = render(StatsCard, {
-      props: {
-        title: 'Tasa de Conversión',
-        value: 85.5,
-        icon: 'chart',
-        color: 'blue'
-      }
+  it('debería renderizar el contenedor del icono con el color por defecto (primary)', () => {
+    const { container } = render(StatsCard, {
+      props: { title: 'Total Usuarios', value: 500, iconName: 'user' },
     });
 
-    const card = getByTestId('stats-card');
-    const title = screen.getByText('Tasa de Conversión');
-    
-    // Verificar atributos de accesibilidad
-    expect(card).toHaveAttribute('role', 'article');
-    expect(title).toHaveAttribute('aria-label', 'Tasa de Conversión: 85.5');
+    const box = iconBox(container);
+    expect(box).not.toBeNull();
+    expect(box).toHaveClass('bg-[#6366F1]/10', 'text-[#6366F1]');
+    expect(box!.querySelector('svg')).toBeInTheDocument();
   });
 
-  it('debería mostrar cambio en el valor', async () => {
-    const { getByTestId, rerender } = render(StatsCard, {
-      props: {
-        title: 'Usuarios Online',
-        value: 100,
-        icon: 'online',
-        color: 'green'
-      }
+  it('debería aplicar las clases del color elegido al contenedor del icono', () => {
+    const { container } = render(StatsCard, {
+      props: { title: 'Usuarios Pendientes', value: 25, iconName: 'pending', color: 'danger' },
     });
 
-    expect(screen.getByText('100')).toBeInTheDocument();
-
-    // Actualizar valor
-    await rerender({
-      title: 'Usuarios Online',
-      value: 150,
-      icon: 'online',
-      color: 'green'
-    });
-
-    expect(screen.getByText('150')).toBeInTheDocument();
+    const box = iconBox(container);
+    expect(box).not.toBeNull();
+    expect(box).toHaveClass('bg-[#EF4444]/10', 'text-[#EF4444]');
   });
 
-  it('debería manejar propiedades opcionales', () => {
-    const { getByTestId } = render(StatsCard, {
-      props: {
-        title: 'Estadística Simple',
-        value: 42
-        // Sin icon, color, etc.
-      }
+  it('no debería renderizar contenedor de icono sin iconName', () => {
+    const { container } = render(StatsCard, {
+      props: { title: 'Estadística Simple', value: 42 },
     });
 
     expect(screen.getByText('Estadística Simple')).toBeInTheDocument();
     expect(screen.getByText('42')).toBeInTheDocument();
-    
-    const card = getByTestId('stats-card');
-    expect(card).toHaveClass('bg-default'); // Clase por defecto
+    expect(iconBox(container)).toBeNull();
   });
 
-  it('debería tener estructura semántica correcta', () => {
-    const { getByTestId } = render(StatsCard, {
-      props: {
-        title: 'Métrica Importante',
-        value: 999,
-        icon: 'important',
-        color: 'red'
-      }
+  it('debería mostrar el trend positivo con su clase de color', () => {
+    render(StatsCard, {
+      props: { title: 'Usuarios Online', value: 100, trend: { value: 12, isPositive: true } },
     });
 
-    const card = getByTestId('stats-card');
-    const title = screen.getByText('Métrica Importante');
-    const value = screen.getByText('999');
-
-    // Verificar estructura semántica
-    expect(card.tagName).toBe('ARTICLE');
-    expect(title.tagName).toBe('H3');
-    expect(value.tagName).toBe('P');
+    const pct = screen.getByText('12%');
+    expect(pct.closest('div')).toHaveClass('text-[#10B981]');
   });
 
-  it('debería ser responsive', () => {
-    const { getByTestId } = render(StatsCard, {
-      props: {
-        title: 'Métrica Responsive',
-        value: 123,
-        icon: 'responsive',
-        color: 'indigo'
-      }
+  it('debería mostrar el valor absoluto del trend negativo en rojo', () => {
+    render(StatsCard, {
+      props: { title: 'Conversión', value: 85, trend: { value: -5, isPositive: false } },
     });
 
-    const card = getByTestId('stats-card');
-    
-    // Verificar clases responsive
-    expect(card).toHaveClass('w-full', 'sm:w-1/2', 'lg:w-1/4');
+    const pct = screen.getByText('5%');
+    expect(pct.closest('div')).toHaveClass('text-[#EF4444]');
+  });
+
+  it('no debería renderizar indicador de trend sin la prop trend', () => {
+    render(StatsCard, { props: { title: 'Métrica', value: 999 } });
+
+    expect(screen.getByText('999')).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+  });
+
+  it('debería actualizar el valor al cambiar las props', async () => {
+    const { rerender } = render(StatsCard, {
+      props: { title: 'Usuarios Online', value: 100 },
+    });
+
+    expect(screen.getByText('100')).toBeInTheDocument();
+
+    await rerender({ title: 'Usuarios Online', value: 150 });
+
+    expect(screen.queryByText('100')).not.toBeInTheDocument();
+    expect(screen.getByText('150')).toBeInTheDocument();
+  });
+
+  it('debería renderizar solo con title y value (props opcionales omitidas)', () => {
+    const { container } = render(StatsCard, {
+      props: { title: 'Mínimo', value: '1,2 k' },
+    });
+
+    expect(screen.getByText('Mínimo')).toBeInTheDocument();
+    expect(screen.getByText('1,2 k')).toBeInTheDocument();
+    expect(iconBox(container)).toBeNull();
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument();
   });
 });

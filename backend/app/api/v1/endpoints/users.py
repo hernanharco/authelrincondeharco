@@ -140,9 +140,9 @@ async def delete_user(
     user_service: UserService = Depends(get_user_service),
     current_user: User = Depends(get_current_admin_user),
 ):
-    await user_service.delete_user(user_id, current_user)
-    # Retornar el usuario actualizado (desactivado)
-    return await user_service.get_user_by_id(user_id, current_user)
+    # El servicio valida existencia/permisos y devuelve el usuario eliminado
+    # (borrado físico); devolvemos 200 con el cuerpo del usuario eliminado.
+    return await user_service.delete_user(user_id, current_user)
 
 
 @router.patch("/{user_id}/role", response_model=UserResponse)

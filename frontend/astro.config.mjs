@@ -5,6 +5,11 @@ import tailwindcss from '@tailwindcss/vite';
 import vercel from '@astrojs/vercel';
 import node from '@astrojs/node';
 
+// ── Proxy target configurable ──────────────────────────────────
+// En local sin Docker: usa localhost:8000
+// En Docker: se setea API_TARGET=http://backend:8000
+const API_TARGET = process.env.API_TARGET || 'http://localhost:8000';
+
 export default defineConfig({
   output: 'server',
   
@@ -33,6 +38,14 @@ export default defineConfig({
   integrations: [svelte()],
   
   vite: {
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()],
+    server: {
+      proxy: {
+        '/api': {
+          target: API_TARGET,
+          changeOrigin: true,
+        },
+      },
+    },
   }
 });

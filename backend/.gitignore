@@ -182,6 +182,7 @@ cython_debug/
 
 # Database
 *.db
+*.db-journal
 *.sqlite
 *.sqlite3
 

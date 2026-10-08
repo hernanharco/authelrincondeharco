@@ -21,6 +21,7 @@ class UserResponse(BaseModel):
     notes: Optional[str] = None
     last_ip: Optional[str] = None
     login_count: int = 0
+    tenant_id: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -63,6 +64,7 @@ class UserCreate(BaseModel):
     notes: Optional[str] = None
     last_ip: Optional[str] = None
     login_count: int = 0
+    tenant_id: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -78,6 +80,7 @@ class UserUpdate(BaseModel):
     notes: Optional[str] = None
     last_ip: Optional[str] = None
     login_count: Optional[int] = None
+    tenant_id: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -107,13 +110,6 @@ class UserStats(BaseModel):
     locked_accounts: int
 
 
-class UsersByOrigin(BaseModel):
-    origin: str
-    total_users: int
-    by_role: dict[str, int]
-    by_status: dict[str, int]
-
-
 class UserActivitySummary(BaseModel):
     user_id: int
     username: str
@@ -126,12 +122,12 @@ class UserActivitySummary(BaseModel):
 
 
 class ProfileUpdate(BaseModel):
-    """Schema para actualizar datos del perfil (campos no sensibles)."""
+    """Schema para actualizar datos del perfil (campos no sensibles).
+    
+    NOTA: Los datos de empresa (nombre, CIF, dirección, IBAN, etc.)
+    se agregarán en Fase 2 con un modelo CompanyProfile dedicado.
+    """
 
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    phone: Optional[str] = None
-    bio: Optional[str] = None
     avatar_url: Optional[str] = None
 
 
@@ -145,7 +141,7 @@ class PasswordReset(BaseModel):
 class BulkUpdateRequest(BaseModel):
     """Schema para actualización masiva de usuarios."""
 
-    user_ids: list[int] = Field(..., min_items=1)
+    user_ids: list[int] = Field(..., min_length=1)
     update_data: dict
 
 
@@ -161,5 +157,4 @@ class UsersByOrigin(BaseModel):
     origin: str
     count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

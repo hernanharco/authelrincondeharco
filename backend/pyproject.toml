@@ -23,8 +23,12 @@ google-auth = "^2.48.0"
 google-auth-oauthlib = "^1.2.4"
 requests = "^2.32.5"
 requests-oauthlib = "^2.0.0"
+httpx = "^0.28.1"
 gunicorn = "^25.0.1"
 psycopg = {extras = ["binary"], version = "^3.3.3"}
+slowapi = "^0.1.9"
+aiosqlite = "^0.20.0"
+redis = "^8.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
@@ -85,7 +89,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q --strict-markers --strict-config"
+addopts = "-ra -q --strict-markers --strict-config --cov=app --cov-report=term-missing --cov-fail-under=80"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
@@ -98,6 +102,12 @@ markers = [
 
 [tool.coverage.run]
 source = ["app"]
+# ctrace (núcleo por defecto) pierde eventos de línea al reanudar corutinas
+# dentro del stack ASGI en Python 3.12 → subconteo de cobertura (líneas
+# ejecutadas en colas de handlers se reportaban como miss). sysmon
+# (sys.monitoring) las registra correctamente. Verificado empíricamente:
+# mismos tests, ctrace → miss, sysmon → cubierto.
+core = "sysmon"
 omit = ["*/tests/*", "*/test_*", "*/__pycache__/*", "*/migrations/*"]
 
 [tool.coverage.report]

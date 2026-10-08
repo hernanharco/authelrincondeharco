@@ -4,8 +4,9 @@ Define la estructura de la tabla users en la base de datos.
 Sin lógica de negocio — solo mapeo de columnas.
 """
 
-from sqlalchemy import Column, String, Boolean, Enum, Integer, DateTime, Text
+from sqlalchemy import Column, String, Boolean, Enum, Integer, DateTime, Text, ForeignKey
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 from app.types.enums import UserRole, UserStatus
@@ -123,6 +124,17 @@ class User(Base):
         nullable=False,
         comment="Total de inicios de sesión realizados",
     )
+
+    # ── Tenant: a qué empresa pertenece este usuario ──────────────
+    tenant_id = Column(
+        String(36),
+        ForeignKey("tenants.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="FK al tenant (empresa) al que pertenece el usuario",
+    )
+
+    tenant = relationship("Tenant", backref="users")
 
     # Timestamps automáticos (Opcional pero muy recomendado)
     created_at = Column(

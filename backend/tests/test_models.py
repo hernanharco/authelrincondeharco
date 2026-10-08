@@ -1,8 +1,17 @@
 """
 Tests para modelos de base de datos
-Cubren validaciones de SQLAlchemy y relaciones
+Cubren estructura de columnas, defaults y representación del modelo User.
+
+Reescritos contra el modelo actual (Fase 1):
+- `full_name` es NOT NULL; defaults de columna (role=USER, status=PENDING,
+  is_active=False) se aplican al flush, no en `__init__`.
+- `__repr__` muestra solo username + role (sin email).
+- Eliminado `test_user_validation`: SQLAlchemy valida al flush, no en el
+  constructor.
 """
 import pytest
+from sqlalchemy import Boolean, Date, DateTime, Integer, Numeric, String, Time
+from app.models.base import Base
 from app.models.user import User, UserRole, UserStatus
 
 
@@ -30,30 +39,51 @@ class TestUserModel:
         assert user.is_active is True
         assert user.is_locked is False
 
-    def test_user_defaults(self):
-        """Test valores por defecto del modelo"""
+    def test_user_column_defaults(self):
+        """Test valores por defecto de columna (se aplican al flush)"""
+        # Los defaults viven en la definición de columna, no en __init__
+        columns = User.__table__.columns
+
+        assert columns["role"].default.arg == UserRole.USER
+        assert columns["status"].default.arg == UserStatus.PENDING
+        assert columns["is_active"].default.arg is False
+        assert columns["is_locked"].default.arg is False
+        assert columns["failed_login_attempts"].default.arg == 0
+        assert columns["login_count"].default.arg == 0
+
+        # Antes del flush, los atributos aún no tienen el default aplicado
         user = User(
             username="testuser",
             email="test@example.com",
             password_hash="$2b$12$hashed_password"
         )
+        assert user.role is None
+        assert user.status is None
+        assert user.failed_login_attempts is None
 
-        # Verificar valores por defecto
-        assert user.role is not None  # Debe tener rol por defecto
-        assert user.status is not None  # Debe tener estado por defecto
-        assert user.failed_login_attempts == 0  # Debe inicializar en 0
+    def test_user_not_null_columns(self):
+        """Test columnas obligatorias (NOT NULL)"""
+        columns = User.__table__.columns
+
+        assert columns["username"].nullable is False
+        assert columns["email"].nullable is False
+        assert columns["password_hash"].nullable is False
+        assert columns["full_name"].nullable is False
 
     def test_user_repr(self):
-        """Test representación string del usuario"""
+        """Test representación string del usuario (solo username y role)"""
         user = User(
             username="testuser",
             email="test@example.com",
-            full_name="Test User"
+            full_name="Test User",
+            role=UserRole.USER
         )
 
         repr_str = repr(user)
         assert "testuser" in repr_str
-        assert "test@example.com" in repr_str
+        assert "USER" in repr_str
+        # El repr actual no incluye el email
+        assert "test@example.com" not in repr_str
 
     def test_user_to_dict(self):
         """Test conversión a diccionario"""
@@ -88,20 +118,6 @@ class TestUserModel:
         assert UserStatus.INACTIVE.value == "INACTIVE"
         assert UserStatus.SUSPENDED.value == "SUSPENDED"
         assert UserStatus.PENDING.value == "PENDING"
-
-    def test_user_validation(self):
-        """Test validaciones del modelo"""
-        # Username requerido
-        with pytest.raises(Exception):
-            user = User(email="test@example.com", password_hash="hash")
-
-        # Email requerido
-        with pytest.raises(Exception):
-            user = User(username="testuser", password_hash="hash")
-
-        # Password hash requerido
-        with pytest.raises(Exception):
-            user = User(username="testuser", email="test@example.com")
 
     def test_user_timestamps(self):
         """Test timestamps automáticos"""
@@ -167,7 +183,7 @@ class TestUserModel:
         assert isinstance(user.failed_login_attempts, int)
 
     def test_user_optional_fields(self):
-        """Test campos opcionales"""
+        """Test campos opcionales (full_name es NOT NULL, ya no es opcional)"""
         user = User(
             username="testuser",
             email="test@example.com",
@@ -175,7 +191,6 @@ class TestUserModel:
         )
 
         # Campos opcionales pueden ser None
-        assert user.full_name is None or isinstance(user.full_name, str)
         assert user.last_login is None
         assert user.last_ip is None
         assert user.notes is None
@@ -201,3 +216,55 @@ class TestUserModel:
             password_hash="$2b$12$hashed_password"
         )
         assert len(user.email) == len(long_email)
+
+
+class TestIntegridadForeignKeys:
+    """Tests de integridad referencial a nivel de metadatos"""
+
+    @staticmethod
+    def _familia(tipo):
+        """Agrupa tipos de columna en familias comparables (String, Integer, ...)"""
+        if isinstance(tipo, String):
+            return "string"
+        if isinstance(tipo, Boolean):
+            return "boolean"
+        if isinstance(tipo, Integer):
+            return "integer"
+        if isinstance(tipo, Numeric):
+            return "numeric"
+        # Ojo con el orden: DateTime subclasea Date en SQLAlchemy
+        if isinstance(tipo, DateTime):
+            return "datetime"
+        if isinstance(tipo, Date):
+            return "date"
+        if isinstance(tipo, Time):
+            return "time"
+        return type(tipo).__name__
+
+    def test_foreign_keys_apuntan_a_columnas_compatibles(self):
+        """Test que cada ForeignKey apunta a una columna de tipo compatible
+
+        PostgreSQL rechaza crear una FK si los tipos no son compatibles
+        (p. ej. VARCHAR -> INTEGER). SQLite no lo valida, así que verificamos
+        los metadatos directamente.
+        """
+        incompatibles = []
+
+        for nombre_tabla, tabla in Base.metadata.tables.items():
+            for columna in tabla.columns:
+                for fk in columna.foreign_keys:
+                    destino = fk.column  # resuelve contra Base.metadata
+                    familia_origen = self._familia(columna.type)
+                    familia_destino = self._familia(destino.type)
+                    if familia_origen != familia_destino:
+                        incompatibles.append(
+                            f"{nombre_tabla}.{columna.name} "
+                            f"({familia_origen}) -> "
+                            f"{destino.table.name}.{destino.name} "
+                            f"({familia_destino})"
+                        )
+
+        assert not incompatibles, (
+            "Foreign keys con tipos de columna incompatibles:\n"
+            + "\n".join(incompatibles)
+        )

@@ -3,158 +3,152 @@ export const prerender = false;
 import DashboardLayout from '@layouts/DashboardLayout.astro';
 import { apiUrl, ENDPOINTS } from '@config/api.config';
 
-// 1. LÓGICA DE SERVIDOR
 const token = Astro.cookies.get('access_token')?.value;
 if (!token) return Astro.redirect('/login');
 
 let pendingUsers = [];
-console.log('🔍 Iniciando carga de usuarios pendientes...');
+let rejectedUsers = [];
 
 try {
-  const response = await fetch(apiUrl(ENDPOINTS.users.pending), {
+  // Fetch pending users
+  const pendingRes = await fetch(apiUrl(ENDPOINTS.users.pending), {
     headers: { Authorization: `Bearer ${token}` },
   });
+  if (pendingRes.status === 401) return Astro.redirect('/login');
+  if (pendingRes.ok) pendingUsers = await pendingRes.json();
 
-  console.log('📊 Response status:', response.status);
-  console.log('📊 Response ok:', response.ok);
-
-  if (response.status === 401) {
-    console.log('❌ Token inválido, redirigiendo a login...');
-    return Astro.redirect('/login');
-  }
-
-  if (response.ok) {
-    pendingUsers = await response.json();
-    console.log('✅ Usuarios pendientes cargados:', pendingUsers.length, pendingUsers);
-  } else {
-    const errorData = await response.text();
-    console.error('❌ Error en respuesta:', response.status, errorData);
+  // Fetch all users and filter rejected (INACTIVE status)
+  const allUsersRes = await fetch(apiUrl(ENDPOINTS.users.list), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (allUsersRes.ok) {
+    const allUsers = await allUsersRes.json();
+    rejectedUsers = allUsers.filter((u: any) => u.status === 'INACTIVE');
   }
 } catch (error) {
-  console.error('❌ Error en el servidor al traer pendientes:', error);
+  console.error('Error:', error);
 }
 ---
 
 <DashboardLayout title="Usuarios Pendientes" pendingCount={pendingUsers.length}>
-  <!-- Inyectamos el token en data-token para que el JS lo lea sin problemas de HttpOnly -->
   <main class="max-w-7xl mx-auto px-4 py-8" id="pending-users-container" data-token={token}>
     <div class="space-y-6">
+      {/* Pending Users */}
       <div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
         <h2 class="text-xl font-semibold text-[#F9FAFB]">Cola de Aprobación</h2>
         <p class="text-[#9CA3AF] mt-1">
-          {
-            pendingUsers.length === 0
-              ? 'Sin registros pendientes'
-              : `${pendingUsers.length} esperando revisión`
-          }
+          {pendingUsers.length === 0 ? 'Sin registros pendientes' : `${pendingUsers.length} esperando revisión`}
         </p>
       </div>
 
       <div class="space-y-4">
-        {
-          pendingUsers.map((user: any) => (
-            <div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6 flex items-center justify-between user-card">
-              <div class="flex items-center space-x-4">
-                <div class="w-12 h-12 bg-[#6366F1] rounded-full flex items-center justify-center text-white font-bold">
-                  {(user.full_name || user.username || 'U').charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h3 class="text-[#F9FAFB] font-semibold">{user.full_name || user.username}</h3>
-                  <p class="text-sm text-[#9CA3AF]">{user.email}</p>
-                  <span class="text-xs px-2 py-1 rounded bg-[#6366F1]/20 text-[#6366F1] mt-2 inline-block">
-                    {user.origin || 'Sistema'}
-                  </span>
-                </div>
+        {pendingUsers.map((user: any) => (
+          <div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6 flex items-center justify-between user-card">
+            <div class="flex items-center space-x-4">
+              <div class="w-12 h-12 bg-[#6366F1] rounded-full flex items-center justify-center text-white font-bold">
+                {(user.full_name || user.username || 'U').charAt(0).toUpperCase()}
               </div>
-
-              <div class="flex space-x-2">
-                <button
-                  data-userid={user.id}
-                  data-action="approve"
-                  class="action-btn px-5 py-2 bg-[#10B981] text-white rounded-lg hover:bg-emerald-600 transition-all font-bold text-sm"
-                >
-                  Aprobar
-                </button>
-                <button
-                  data-userid={user.id}
-                  data-action="reject"
-                  class="action-btn px-5 py-2 bg-[#EF4444] text-white rounded-lg hover:bg-red-600 transition-all font-bold text-sm"
-                >
-                  Rechazar
-                </button>
+              <div>
+                <h3 class="text-[#F9FAFB] font-semibold">{user.full_name || user.username}</h3>
+                <p class="text-sm text-[#9CA3AF]">{user.email}</p>
+                <span class="text-xs px-2 py-1 rounded bg-[#6366F1]/20 text-[#6366F1] mt-2 inline-block">
+                  {user.origin || 'Sistema'}
+                </span>
               </div>
             </div>
-          ))
-        }
+            <div class="flex space-x-2">
+              <button data-userid={user.id} data-action="approve" data-status="ACTIVE" class="action-btn px-5 py-2 bg-[#10B981] text-white rounded-lg hover:bg-emerald-600 transition-all font-bold text-sm">
+                Aprobar
+              </button>
+              <button data-userid={user.id} data-action="reject" data-status="INACTIVE" class="action-btn px-5 py-2 bg-[#EF4444] text-white rounded-lg hover:bg-red-600 transition-all font-bold text-sm">
+                Rechazar
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
+
+      {/* Rejected Users */}
+      {rejectedUsers.length > 0 && (
+        <>
+          <div class="bg-[#1E2130] border border-[#EF4444]/30 rounded-lg p-6 mt-8">
+            <h2 class="text-xl font-semibold text-[#F9FAFB]">Usuarios Rechazados</h2>
+            <p class="text-[#9CA3AF] mt-1">
+              {rejectedUsers.length} usuario{rejectedUsers.length !== 1 ? 's' : ''} rechazado{rejectedUsers.length !== 1 ? 's' : ''} — pueden ser re-aprobados
+            </p>
+          </div>
+
+          <div class="space-y-4">
+            {rejectedUsers.map((user: any) => (
+              <div class="bg-[#1E2130] border border-[#EF4444]/20 rounded-lg p-6 flex items-center justify-between user-card opacity-80">
+                <div class="flex items-center space-x-4">
+                  <div class="w-12 h-12 bg-[#6B7280] rounded-full flex items-center justify-center text-white font-bold">
+                    {(user.full_name || user.username || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h3 class="text-[#F9FAFB] font-semibold">{user.full_name || user.username}</h3>
+                    <p class="text-sm text-[#9CA3AF]">{user.email}</p>
+                    <div class="flex items-center gap-2 mt-2">
+                      <span class="text-xs px-2 py-1 rounded bg-[#6366F1]/20 text-[#6366F1]">
+                        {user.origin || 'Sistema'}
+                      </span>
+                      <span class="text-xs px-2 py-1 rounded bg-[#EF4444]/10 text-[#EF4444]">
+                        Rechazado
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex space-x-2">
+                  <button data-userid={user.id} data-action="approve" data-status="ACTIVE" class="action-btn px-5 py-2 bg-[#10B981] text-white rounded-lg hover:bg-emerald-600 transition-all font-bold text-sm">
+                    Re-aprobar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   </main>
 
   <script>
     import { BACKEND_URL, ENDPOINTS } from '@config/api.config';
 
-    async function handleUserAction(userId: string, action: string) {
-      console.log(`⚡ Procesando ${action} para ID: ${userId}`);
-
-      // Obtenemos el token del data-attribute del main (mucho más seguro que document.cookie)
+    async function handleUserAction(userId: string, newStatus: string) {
       const container = document.getElementById('pending-users-container');
       const token = container?.dataset.token;
+      if (!token) return;
 
-      if (!token) {
-        console.error('❌ Token no encontrado en el contenedor');
-        return;
-      }
-
-      // CORRECCIÓN: Para rechazar, debería ser 'INACTIVE' o 'REJECTED', no 'PENDING'
-      const status = action === 'approve' ? 'ACTIVE' : 'INACTIVE';
       const url = `${BACKEND_URL}${ENDPOINTS.users.status(userId)}`;
-      // console.log('🔗 URL llamada:', url);
-      // console.log('📝 Payload:', { status });
-
       try {
         const response = await fetch(url, {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status }),
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ status: newStatus }),
         });
-
-        console.log('📊 Response status:', response.status);
-
         if (response.ok) {
-          console.log('✅ Acción completada con éxito');
           window.location.reload();
         } else {
           const err = await response.json();
-          console.error('❌ Error en acción:', err);
           alert(err.detail || 'Error en la operación');
-          window.location.reload(); // Recargamos para limpiar el estado de los botones
         }
       } catch (err) {
-        console.error('❌ Error de red:', err);
-        alert('Error de conexión con el servidor');
+        alert('Error de conexión');
       }
     }
 
-    // Usamos delegación de eventos en el contenedor específico
     const container = document.getElementById('pending-users-container');
-
     container?.addEventListener('click', async (e) => {
       const target = e.target as HTMLElement;
       const btn = target.closest('.action-btn') as HTMLButtonElement;
-
       if (btn) {
-        e.preventDefault(); // Detenemos cualquier comportamiento por defecto
-        e.stopPropagation(); // Evitamos que el evento suba más
-
-        const { userid, action } = btn.dataset;
-
-        if (userid && action) {
+        e.preventDefault();
+        e.stopPropagation();
+        const { userid, status } = btn.dataset;
+        if (userid && status) {
           btn.disabled = true;
           btn.innerText = '...';
-          await handleUserAction(userid, action);
+          await handleUserAction(userid, status);
         }
       }
     });

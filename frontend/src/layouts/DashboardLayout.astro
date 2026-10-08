@@ -107,6 +107,28 @@ if (pendingUsersCount === 0) {
             </li>
             <li>
               <a
+                href="/dashboard/companies"
+                class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-[#2D3148] text-[#F9FAFB]"
+              >
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                </svg>
+                Empresas
+              </a>
+            </li>
+            <li>
+              <a
+                href="/dashboard/tenants"
+                class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-[#2D3148] text-[#F9FAFB]"
+              >
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+                Tenants
+              </a>
+            </li>
+            <li>
+              <a
                 href="/dashboard/origins"
                 class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-[#2D3148] text-[#F9FAFB]"
               >
@@ -214,8 +236,10 @@ if (pendingUsersCount === 0) {
   } catch (e) {
     console.error("Error servidor:", e);
   } finally {
-    // 2. LIMPIEZA MANUAL EN CLIENTE (El martillo)
-    const domain = ".elrincondeharco.com";
+    // 2. LIMPIEZA MANUAL EN CLIENTE
+    // Detectar dominio actual: "auth.rincom.es" -> ".rincom.es"
+    const hostParts = window.location.hostname.split('.');
+    const domain = hostParts.length > 2 ? '.' + hostParts.slice(-2).join('.') : window.location.hostname;
     
     // Intentamos borrar la cookie con todas las combinaciones posibles
     document.cookie = `access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${domain}; SameSite=None; Secure`;
@@ -223,7 +247,7 @@ if (pendingUsersCount === 0) {
     document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
 
     console.log("Cookie limpiada, redirigiendo...");
-    window.location.href = '/login';
+    window.location.href = "/login";
   }
 });
     </script>

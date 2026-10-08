@@ -1,0 +1,49 @@
+schema: spec-driven
+
+context: |
+  Monorepo authCore (elrincondeharco.com auth): backend/ FastAPI + SQLAlchemy async
+  (Python 3.12, Poetry, pytest) and frontend/ Astro 6 + Svelte 5 (pnpm, vitest).
+  Deploy from dev branch to Hetzner (/opt/authcore, Tailscale host hetzner-ts).
+  Layered backend: api/core/domain/interfaces/repositories/services/schemas.
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    guidelines:
+      - Follow existing patterns (Black/isort, strict mypy, dependency_overrides in tests)
+    tdd: true
+    test_command: cd backend && .venv/bin/python -m pytest -q --no-cov
+  verify:
+    test_command: cd backend && .venv/bin/python -m pytest
+    build_command: cd frontend && pnpm install && pnpm build
+    coverage_threshold: 80
+  archive:
+    - Warn before merging destructive deltas
+
+testing:
+  backend:
+    runner: pytest
+    command: cd backend && .venv/bin/python -m pytest
+    strict_tdd_command: cd backend && .venv/bin/python -m pytest -q --no-cov
+    coverage: --cov=app --cov-report=term-missing --cov-fail-under=80 (backend/tests/pytest.ini)
+    layers: [unit, integration]
+    async: pytest-asyncio + httpx ASGITransport + aiosqlite
+  frontend:
+    runner: vitest
+    command: cd frontend && pnpm test:run
+    strict_tdd_command: cd frontend && pnpm test:run
+    coverage: v8 thresholds branches/functions/lines/statements = 80 (frontend/vitest.config.ts)
+    layers: [unit, component]
+    prerequisite: pnpm install (node_modules absent)
+
+strict_tdd: true

@@ -14,13 +14,20 @@ class IAuthService(ABC):
     """
 
     @abstractmethod
-    async def authenticate_user(self, username: str, password: str) -> Optional[User]:
+    async def authenticate_user(
+        self, username: str, password: str, raise_on_pending: bool = False
+    ) -> Optional[User]:
         """
         Autentica un usuario con credenciales tradicionales.
 
         Args:
             username: Nombre de usuario o email
             password: Contraseña en texto plano
+            raise_on_pending: Cuando True y la contraseña es correcta pero la
+                cuenta está inactiva, lanza 403 PENDING_APPROVAL en vez de
+                devolver None (lo usa el endpoint de login para que el estado
+                de aprobación manual no se confunda con credenciales malas).
+                Con False se mantiene el comportamiento histórico: None.
 
         Returns:
             Usuario autenticado o None si falla

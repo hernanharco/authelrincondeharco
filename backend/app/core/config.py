@@ -59,10 +59,20 @@ class Settings(BaseSettings):
             f"sslmode={self.pg_sslmode}"
         )
 
+    # --- Rate Limiting (slowapi) ---
+    # "memory://" (default): almacenamiento en memoria, sin dependencias
+    # externas — dev/test. En producción usar "redis://host:puerto".
+    ratelimit_storage_uri: str = Field("memory://", alias="RATELIMIT_STORAGE_URI")
+
     # --- JWT Settings ---
-    access_token_expire_minutes: int = Field(30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
-    algorithm: str = Field("HS256", alias="ALGORITHM")
+    access_token_expire_minutes: int = Field(120, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    algorithm: str = Field("RS256", alias="ALGORITHM")
     API_V1_STR: str = "/api/v1"
+
+    # --- Claves RSA para RS256 ---
+    # Si no se proveen, se auto-generan en app/core/crypto.py
+    rsa_private_key: Optional[str] = Field(None, alias="RSA_PRIVATE_KEY")
+    rsa_public_key: Optional[str] = Field(None, alias="RSA_PUBLIC_KEY")
 
     # --- Google OAuth ---
     google_client_id: str = Field("", alias="GOOGLE_CLIENT_ID")
