@@ -8,13 +8,24 @@
  * formateada, "—" cuando ultimo_acceso es null). Con `usage` vacío muestra
  * el estado "No hay tenants con usuarios todavía".
  *
+ * Cada fila es un enlace al detalle del tenant (/dashboard/tenants/{slug})
+ * (stretched-link). Además, cada fila tiene un botón chevron
+ * (aria-label "Ver miembros de {name}", aria-expanded) que alterna una fila
+ * extra <tr><td colspan> con los miembros del tenant SIN navegar. Carga
+ * perezosa en el primer expand: GET /api/v1/tenants/by-slug/{slug} → id y
+ * después GET /api/v1/tenants/{id}/users, con Authorization: Bearer
+ * (cookie access_token). Cache por slug (sin refetch al re-expandir).
+ * Estados: "Cargando miembros…", error (con enlace al detalle como
+ * fallback) y "Sin miembros". DOM colapsado idéntico al original (la fila
+ * extra solo aparece expandida).
+ *
  * Intentos descartados de comportamiento inexistente (si se implementara,
  * los tests fallarían): prop `loading`, testids, ordenamiento/paginación
- * internos, enlaces por fila, columna "Activos" visible, formato de fecha
- * "N/A" en lugar de "—".
+ * internos, columna "Activos" visible, formato de fecha "N/A" en lugar
+ * de "—", exclusión mutua de filas abiertas (varias pueden estar abiertas).
  */
-import { render, screen, cleanup } from '@testing-library/svelte';
-import { describe, it, expect, afterEach } from 'vitest';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import TenantUsageTable from '../../src/components/dashboard/TenantUsageTable.svelte';
 
 type UsageRow = {
@@ -102,11 +113,156 @@ describe('TenantUsageTable', () => {
     expect(cell!.textContent).not.toMatch(/\d{2}\/\d{2}\/\d{4}/);
   });
 
+  it('debería enlazar cada fila al detalle del tenant (/dashboard/tenants/{slug})', () => {
+    render(TenantUsageTable, { props: { usage: mockUsage } });
+
+    const links = screen.getAllByRole('link');
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute('href', '/dashboard/tenants/acme');
+    expect(links[1]).toHaveAttribute('href', '/dashboard/tenants/globex');
+  });
+
   it('debería mostrar el estado vacío cuando usage está vacío', () => {
     render(TenantUsageTable, { props: { usage: [] } });
 
     expect(screen.getByText('No hay tenants con usuarios todavía')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.queryAllByRole('row')).toHaveLength(0);
+  });
+});
+
+type TenantMember = {
+  id: string;
+  username: string;
+  email: string;
+  role_tenant: string;
+  status: string;
+  login_count: number;
+  last_login: string | null;
+};
+
+const alice: TenantMember = {
+  id: 'u-1',
+  username: 'alice',
+  email: 'alice@acme.test',
+  role_tenant: 'admin',
+  status: 'active',
+  login_count: 12,
+  last_login: '2024-05-10T14:30:00Z',
+};
+
+function okResponse(data: unknown) {
+  return { ok: true, json: async () => data } as Response;
+}
+
+describe('TenantUsageTable — expansión inline de miembros', () => {
+  beforeEach(() => {
+    document.cookie = 'access_token=test-token-123';
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('debería renderizar el chevron con aria-expanded=false y no añadir filas extra en colapsado', () => {
+    render(TenantUsageTable, { props: { usage: mockUsage } });
+
+    const buttons = screen.getAllByRole('button', { name: 'Ver miembros de Acme Corp' });
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAttribute('aria-expanded', 'false');
+
+    // DOM colapsado idéntico: sin fila extra de miembros
+    expect(screen.getAllByRole('row')).toHaveLength(3);
+  });
+
+  it('al expandir debería llamar a by-slug y después a users, y renderizar los miembros', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(okResponse({ id: 't-acme', slug: 'acme', name: 'Acme Corp' }))
+      .mockResolvedValueOnce(okResponse([alice]));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(TenantUsageTable, { props: { usage: mockUsage } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Ver miembros de Acme Corp' }));
+
+    await screen.findByText('alice');
+    expect(screen.getByText('alice@acme.test')).toBeInTheDocument();
+    expect(screen.getByText('admin')).toBeInTheDocument();
+    expect(screen.getByText('active')).toBeInTheDocument();
+
+    const button = screen.getByRole('button', { name: 'Ver miembros de Acme Corp' });
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls).toHaveLength(2);
+    expect(urls[0]).toContain('/api/v1/tenants/by-slug/acme');
+    expect(urls[1]).toContain('/api/v1/tenants/t-acme/users');
+    expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toMatchObject({
+      Authorization: 'Bearer test-token-123',
+    });
+  });
+
+  it('al re-expandir no debería volver a fetchear (cache por slug)', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(okResponse({ id: 't-acme', slug: 'acme', name: 'Acme Corp' }))
+      .mockResolvedValueOnce(okResponse([alice]));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(TenantUsageTable, { props: { usage: mockUsage } });
+    const button = () => screen.getByRole('button', { name: 'Ver miembros de Acme Corp' });
+
+    await fireEvent.click(button());
+    await screen.findByText('alice');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await fireEvent.click(button()); // colapsar
+    expect(screen.queryByText('alice')).not.toBeInTheDocument();
+
+    await fireEvent.click(button()); // re-expandir: sin refetch
+    await screen.findByText('alice');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('si el fetch falla debería mostrar un error sin crashear y conservar el enlace al detalle', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({ detail: 'boom' }) } as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(TenantUsageTable, { props: { usage: mockUsage } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Ver miembros de Acme Corp' }));
+
+    const error = await screen.findByText(/No se pudieron cargar los miembros/);
+    expect(error).toBeInTheDocument();
+
+    // Fallback: enlace al detalle del tenant dentro del panel de error
+    const fallback = screen.getByRole('link', { name: 'Ver ficha completa del tenant' });
+    expect(fallback).toHaveAttribute('href', '/dashboard/tenants/acme');
+    // El enlace de la fila sigue existiendo también
+    expect(screen.getAllByRole('link').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('la lista vacía debería mostrar "Sin miembros"', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(okResponse({ id: 't-acme', slug: 'acme', name: 'Acme Corp' }))
+      .mockResolvedValueOnce(okResponse([]));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(TenantUsageTable, { props: { usage: mockUsage } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Ver miembros de Acme Corp' }));
+
+    expect(await screen.findByText('Sin miembros')).toBeInTheDocument();
+  });
+
+  it('click en el chevron no debe navegar a la página de detalle', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(okResponse({ id: 't-acme', slug: 'acme', name: 'Acme Corp' }))
+      .mockResolvedValueOnce(okResponse([alice]));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(TenantUsageTable, { props: { usage: mockUsage } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Ver miembros de Acme Corp' }));
+
+    // La ruta no cambia (sin navegación) y el toggle se ejecutó (miembros visibles)
+    expect(window.location.pathname).toBe('/');
+    await waitFor(() => expect(screen.getByText('alice')).toBeInTheDocument());
   });
 });
