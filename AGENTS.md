@@ -18,6 +18,10 @@ Coding standards for AI-assisted and human contributions.
 
 ## General
 
+- Change size: every PR / work unit must stay at **400 changed lines or less**
+  (additions + deletions). When a change exceeds it, split it into stacked
+  (chained) PRs reviewed and merged in order — never one mega-PR.
+  Anti-pattern reference: the 72-commit / +31k-line `dev -> main` PR (#13).
 - Conventional Commits (`feat:`, `fix:`, `chore:`).
 - Do not commit secrets; `.env` files stay local.
 - One feature or fix per branch/commit.
