@@ -24,7 +24,7 @@ services:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U authcore"]
-      interval: 5s
+      interval: 30s
       timeout: 5s
       retries: 10
     deploy:
@@ -90,6 +90,11 @@ services:
         limits:
           memory: 256M
           cpus: "0.5"
+    networks:
+      default:
+      elrincondeharco_net:
+        aliases:
+          - authcore-api
 
   # ── Redis (rate limiting) ────────────────────────────────
   redis:
@@ -139,3 +144,8 @@ services:
 volumes:
   pgdata:
   redisdata:
+
+networks:
+  elrincondeharco_net:
+    external: true
+    name: elrincondeharco_net
