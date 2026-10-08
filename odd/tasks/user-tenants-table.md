@@ -45,4 +45,6 @@ usuarios no-SUPERADMIN (el SUPERADMIN hace bypass sin consultar la tabla).
   - R3-002 `backend/tests/test_models.py:253` (SUGGESTION)
   - R3-003 `scripts/tenant-usage.sql:23` (SUGGESTION)
   - R3-004 `.atl/.skill-registry.cache.json:3` (SUGGESTION)
-- **Commits**: pendiente de decisión del usuario (sin commit aún en rama `dev`).
+- **Commits** (rama `dev`, ambos con `--no-verify` — el hook pide `claude /login`):
+  - `ba8e9dd` `fix(auth): align user_tenants FK type with integer users.id`
+  - `324a984` `chore: add tenant usage queries and feature doc`
