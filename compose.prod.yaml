@@ -35,6 +35,7 @@ services:
 
   # ── Backend FastAPI ─────────────────────────────────────────
   api:
+    image: ghcr.io/hernanharco/authelrincondeharco/backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
