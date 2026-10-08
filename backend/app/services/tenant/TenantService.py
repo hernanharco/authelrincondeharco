@@ -2,7 +2,7 @@
 TenantService — Lógica de negocio de tenants.
 Responsabilidad única: orquestar operaciones sobre tenants.
 """
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 
 from app.models.tenant import Tenant
@@ -62,3 +62,15 @@ class TenantService(ITenantService):
         # Verificar que existe
         await self.get_by_id(tenant_id)
         return await self.tenant_repository.delete(tenant_id)
+
+    async def get_usage(self) -> List[Dict[str, Any]]:
+        """Ranking de uso por tenant (member count DESC)."""
+        return await self.tenant_repository.get_usage()
+
+    async def get_tenant_users(self, tenant_id: str) -> List[Dict[str, Any]]:
+        """Miembros de un tenant (membresía user_tenants).
+
+        404 si el tenant no existe.
+        """
+        await self.get_by_id(tenant_id)
+        return await self.tenant_repository.get_members_by_tenant(tenant_id)

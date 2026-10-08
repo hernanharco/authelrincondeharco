@@ -6,7 +6,13 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 
 from app.models.user import User
-from app.schemas.tenant import TenantResponse, TenantCreate, TenantUpdate
+from app.schemas.tenant import (
+    TenantResponse,
+    TenantCreate,
+    TenantUpdate,
+    TenantUsageResponse,
+    TenantMemberResponse,
+)
 from app.services.tenant.TenantService import TenantService
 from app.api.v1.dependencies import get_tenant_service
 from app.core.security import get_current_admin_user
@@ -24,6 +30,34 @@ async def list_tenants(
 ):
     """Lista todos los tenants. Requiere rol ADMIN."""
     return await tenant_service.get_all(skip=skip, limit=limit, active_only=active_only)
+
+
+# --- Rutas estáticas / compuestas — SIEMPRE antes de /{tenant_id} ---
+
+
+@router.get("/usage", response_model=List[TenantUsageResponse])
+async def tenant_usage(
+    tenant_service: TenantService = Depends(get_tenant_service),
+    _current_user: User = Depends(get_current_admin_user),
+):
+    """Ranking de uso por tenant (member count DESC). Requiere rol ADMIN.
+
+    Conteos basados en la membresía `user_tenants` (no en users.tenant_id).
+    """
+    return await tenant_service.get_usage()
+
+
+@router.get("/{tenant_id}/users", response_model=List[TenantMemberResponse])
+async def list_tenant_users(
+    tenant_id: str,
+    tenant_service: TenantService = Depends(get_tenant_service),
+    _current_user: User = Depends(get_current_admin_user),
+):
+    """Miembros de un tenant con su rol de membresía. Requiere rol ADMIN.
+
+    `role_tenant` viene de `user_tenants`, no del rol global del usuario.
+    """
+    return await tenant_service.get_tenant_users(tenant_id)
 
 
 @router.get("/{tenant_id}", response_model=TenantResponse)

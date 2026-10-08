@@ -28,6 +28,41 @@ class TenantListResponse(BaseModel):
     total: int
 
 
+class TenantUsageResponse(BaseModel):
+    """Ranking de uso por tenant (GET /tenants/usage).
+
+    Conteos derivados de la membresía user_tenants + users;
+    `ultimo_acceso` es nullable (tenant sin miembros con logins).
+    """
+
+    slug: str
+    name: str
+    personas: int
+    admins: int
+    activas_30d: int
+    activos: int
+    ultimo_acceso: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TenantMemberResponse(BaseModel):
+    """Miembro de un tenant con su rol de MEMBRESÍA (GET /tenants/{id}/users).
+
+    `role_tenant` es el rol en user_tenants, NO el rol global users.role.
+    """
+
+    id: int
+    username: str
+    email: str
+    role_tenant: str
+    status: str
+    login_count: int
+    last_login: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # --- ENTRADAS ---
 
 
