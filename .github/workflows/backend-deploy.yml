@@ -1,4 +1,11 @@
-name: Deploy Backend
+# Build + push the backend image to GHCR as a CI verification (backend/Dockerfile
+# still builds, image archived by sha). The REAL production deploy runs through
+# deploy-webhook.service on the server (GitHub push webhook → hard reset to
+# origin/main → docker compose up -d --build), which is the only path that
+# reaches Hetzner: port 22 is restricted to WireGuard (10.0.0.0/24) /
+# Tailscale (100.64.0.0/10) and unreachable from GitHub-hosted runners (the old
+# SSH deploy job failed with "dial tcp :22: i/o timeout" on every run).
+name: Build Backend
 
 on:
   push:
@@ -19,6 +26,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,23 +52,3 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to Hetzner
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.HETZNER_HOST }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/authcore
-            git fetch origin main
-            git checkout main 2>/dev/null || git checkout -B main origin/main
-            git reset --hard origin/main
-            docker compose -f compose.prod.yaml pull api
-            docker compose -f compose.prod.yaml up -d --no-deps api
-            docker compose -f compose.prod.yaml exec -T api python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=10).status==200 else 1)"
