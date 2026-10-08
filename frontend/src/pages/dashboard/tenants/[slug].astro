@@ -2,6 +2,7 @@
 export const prerender = false;
 import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 import { apiUrl, ENDPOINTS } from '../../../config/api.config';
+import { formatDate } from '../../../utils/date';
 
 const token = Astro.cookies.get('access_token')?.value;
 if (!token) {
@@ -16,6 +17,7 @@ if (!slug) {
 let tenant: any = null;
 let tenantModules: any[] = [];
 let allModules: any[] = [];
+let tenantMembers: any[] | null = null;
 let error = '';
 
 try {
@@ -31,17 +33,22 @@ try {
 		tenant = await tenantRes.json();
 
 		// 2. Obtener módulos asignados al tenant
-		const [assignedRes, allRes] = await Promise.all([
+		const [assignedRes, allRes, membersRes] = await Promise.all([
 			fetch(apiUrl(ENDPOINTS.tenants.modules(tenant.id)), {
 				headers: { Authorization: `Bearer ${token}` },
 			}),
 			fetch(apiUrl(ENDPOINTS.modules.list), {
 				headers: { Authorization: `Bearer ${token}` },
 			}),
+			fetch(apiUrl(ENDPOINTS.tenants.users(tenant.id)), {
+				headers: { Authorization: `Bearer ${token}` },
+			}),
 		]);
 
 		if (assignedRes.ok) tenantModules = await assignedRes.json();
 		if (allRes.ok) allModules = await allRes.json();
+		// Si falla (403/500), tenantMembers queda null y la card no se renderiza
+		if (membersRes.ok) tenantMembers = await membersRes.json();
 	}
 } catch (e) {
 	error = 'Error al cargar datos del tenant';
@@ -148,6 +155,46 @@ const unassignedModules = allModules.filter((m: any) => !assignedIds.has(m.id));
 							</div>
 						)}
 					</div>
+
+					{/* Miembros del tenant */}
+					{tenantMembers && (
+						<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
+							<h3 class="text-lg font-semibold text-[#F9FAFB] mb-4">Miembros</h3>
+							{tenantMembers.length > 0 ? (
+								<div class="overflow-x-auto">
+									<table class="w-full">
+										<thead>
+											<tr class="border-b border-[#2D3148]">
+												<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Usuario</th>
+												<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Rol</th>
+												<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Estado</th>
+												<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Logins</th>
+												<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Último acceso</th>
+											</tr>
+										</thead>
+										<tbody>
+											{tenantMembers.map((m: any) => (
+												<tr class="border-b border-[#2D3148] hover:bg-[#2D3148]/50 transition-colors">
+													<td class="py-3 px-4">
+														<div class="text-sm font-medium text-[#F9FAFB]">{m.username}</div>
+														<div class="text-xs text-[#9CA3AF]">{m.email}</div>
+													</td>
+													<td class="py-3 px-4 text-sm text-[#9CA3AF]">{m.role_tenant}</td>
+													<td class="py-3 px-4 text-sm text-[#9CA3AF]">{m.status}</td>
+													<td class="py-3 px-4 text-sm text-[#9CA3AF]">{m.login_count}</td>
+													<td class="py-3 px-4 text-sm text-[#9CA3AF]">
+														{m.last_login ? formatDate(m.last_login) : '—'}
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</div>
+							) : (
+								<p class="text-center text-sm text-[#6B7280] py-8">Este tenant aún no tiene miembros</p>
+							)}
+						</div>
+					)}
 
 					{/* Info del tenant */}
 					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">

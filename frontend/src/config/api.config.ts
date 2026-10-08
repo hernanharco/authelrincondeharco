@@ -43,6 +43,8 @@ export const ENDPOINTS = {
   },
   tenants: {
     list: '/api/v1/tenants/',
+    usage: '/api/v1/tenants/usage',
+    users: (tenantId: string) => `/api/v1/tenants/${tenantId}/users`,
     byId: (id: string) => `/api/v1/tenants/${id}`,
     bySlug: (slug: string) => `/api/v1/tenants/by-slug/${slug}`,
     modules: (tenantId: string) => `/api/v1/tenant-modules/tenants/${tenantId}/modules`,
