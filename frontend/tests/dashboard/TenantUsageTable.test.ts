@@ -8,10 +8,12 @@
  * formateada, "—" cuando ultimo_acceso es null). Con `usage` vacío muestra
  * el estado "No hay tenants con usuarios todavía".
  *
+ * Cada fila es un enlace al detalle del tenant (/dashboard/tenants/{slug}).
+ *
  * Intentos descartados de comportamiento inexistente (si se implementara,
  * los tests fallarían): prop `loading`, testids, ordenamiento/paginación
- * internos, enlaces por fila, columna "Activos" visible, formato de fecha
- * "N/A" en lugar de "—".
+ * internos, columna "Activos" visible, formato de fecha "N/A" en lugar
+ * de "—".
  */
 import { render, screen, cleanup } from '@testing-library/svelte';
 import { describe, it, expect, afterEach } from 'vitest';
@@ -100,6 +102,15 @@ describe('TenantUsageTable', () => {
     const cell = rowFor('globex').querySelector('td:last-child');
     expect(cell!.textContent).toContain('—');
     expect(cell!.textContent).not.toMatch(/\d{2}\/\d{2}\/\d{4}/);
+  });
+
+  it('debería enlazar cada fila al detalle del tenant (/dashboard/tenants/{slug})', () => {
+    render(TenantUsageTable, { props: { usage: mockUsage } });
+
+    const links = screen.getAllByRole('link');
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute('href', '/dashboard/tenants/acme');
+    expect(links[1]).toHaveAttribute('href', '/dashboard/tenants/globex');
   });
 
   it('debería mostrar el estado vacío cuando usage está vacío', () => {

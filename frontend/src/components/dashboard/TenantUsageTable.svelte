@@ -30,9 +30,14 @@
       </thead>
       <tbody>
         {#each usage as row (row.slug)}
-          <tr class="border-b border-[#2D3148] hover:bg-[#2D3148]/50 transition-colors">
+          <tr class="relative border-b border-[#2D3148] hover:bg-[#2D3148]/50 transition-colors cursor-pointer">
             <td class="py-3 px-4">
-              <div class="text-sm font-medium text-[#F9FAFB]">{row.name}</div>
+              <a
+                href={`/dashboard/tenants/${row.slug}`}
+                class="z-10 relative text-sm font-medium text-[#F9FAFB] hover:text-[#818CF8] transition-colors after:absolute after:inset-0 after:content-['']"
+              >
+                {row.name}
+              </a>
               <div class="text-xs text-[#9CA3AF]">{row.slug}</div>
             </td>
             <td class="py-3 px-4 text-sm text-[#9CA3AF]">{row.personas}</td>
