@@ -76,7 +76,13 @@ backend change.
       **exit 1 (no match)** to **`TenantUsageTable.bVoG8vfz.js`**.
       Parent spot check: re-ran vitest (119/119) and the bundle grep independently.
 - [x] **T5 — Work-unit commits** on `fix/tenant-members-expand`, with the parent
-      re-running its own spot check first.
+      re-running its own spot check first. Native review preflight via `assess`
+      (`baseRef 38a5237`, `committedOnly: true`): **risk medium** (reason
+      `executable_change` on `TenantUsageTable.svelte`), **`reviewDue: false` —
+      `under_budget`**, writer profile `large`, `rddLine: on`,
+      `nativeReviewOutcome: unknown`. Plan returned: `writerSelfVerification: true`,
+      `independentVerifier: false` — the writer's report plus the parent spot check is
+      the verification of record for this candidate; native review defers to the PR slice.
 
 ## Evidence / commits
 
@@ -104,10 +110,15 @@ were left untouched.
 
 ## Checks
 
-- `cd frontend && npx vitest run` — all frontend tests green.
-- `cd frontend && npm run build` — Astro build, 0 errors.
+- `cd frontend && npx vitest run` — **10 files / 119 tests, 0 failed** (run by the writer
+  after all page edits, then re-run independently by the parent).
+- `cd frontend && npm run build` — exit 0, "Build Complete!", 0 errors.
 - Structural proof of hydration: `grep -rl "No se pudieron cargar los miembros" frontend/dist/client/_astro/*.js`
-  must now match a chunk (it matched nothing before the fix).
+  matched nothing before, matches `TenantUsageTable.bVoG8vfz.js` after.
+
+**Pending / not run**: no dev-server or production smoke test was executed against the
+live backend, so the SSR island serialization is proven at build level only. Verify by
+hand after deploy: open `/dashboard`, expand a tenant row, confirm the members render.
 
 ## Forecast / delivery
 
