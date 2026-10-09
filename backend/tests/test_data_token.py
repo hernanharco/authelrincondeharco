@@ -267,6 +267,55 @@ class TestDataToken:
         assert claims["sub"] == str(user.id)
         assert claims["role"] == "authenticated"
 
+    async def test_tenant_inherited_from_hub_jwt_when_legacy_field_is_null(
+        self, client, db_session
+    ):
+        """A11: el tenant del data token viene del hub JWT (select-tenant),
+        NO del campo legacy users.tenant_id.
+
+        En produccion users.tenant_id es NULL en TODOS los usuarios (la
+        membresia vive en la tabla M:N user_tenants). El hub JWT que llega
+        aqui ya fue mintido por /users/select-tenant y SI lleva el claim
+        `tenant`. Si el endpoint leyera el campo legacy, el data token saldria
+        SIN tenant -> el RLS de la spoke no matchea -> 0 filas sin error.
+        """
+        tenant = await _create_tenant(db_session, slug="riderdefensa")
+        user = await _create_user(db_session, tenant_id=None, username="a11")
+        assert user.tenant_id is None  # estado real de produccion
+
+        # El hub JWT SI trae tenant (como lo emite select-tenant)
+        hub = await _hub_token(user, tenant=tenant)
+        response = await client.post(
+            DATA_TOKEN_URL, headers={"Authorization": f"Bearer {hub}"}
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.text
+        claims = _decode(response.json()["access_token"])
+        assert claims["tenant"] == {
+            "id": tenant.id,
+            "slug": tenant.slug,
+            "name": tenant.name,
+        }
+
+    async def test_tenant_omitted_when_hub_jwt_has_no_tenant_claim(
+        self, client, db_session
+    ):
+        """Hub JWT sin claim tenant (login directo, sin select-tenant) ->
+        el data token TAMPOCO lleva tenant. No se resuelve membresia a
+        ciegas: con varias membresias seria ambiguo (A11)."""
+        tenant = await _create_tenant(db_session, slug="multi")
+        user = await _create_user(db_session, tenant_id=tenant.id, username="multi")
+
+        # Hub JWT mintido SIN el claim tenant (p.ej. token de /login)
+        hub = await _hub_token(user, tenant=None)
+        response = await client.post(
+            DATA_TOKEN_URL, headers={"Authorization": f"Bearer {hub}"}
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.text
+        claims = _decode(response.json()["access_token"])
+        assert "tenant" not in claims
+
     async def test_request_body_claims_are_ignored(self, client, db_session):
         """Triangulación: el body NO se lee; los claims vienen solo del usuario."""
         user = await _create_user(db_session, username="spoof")
