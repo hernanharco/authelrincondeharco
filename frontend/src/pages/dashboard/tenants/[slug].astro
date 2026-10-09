@@ -3,6 +3,9 @@ export const prerender = false;
 import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 import { apiUrl, ENDPOINTS } from '../../../config/api.config';
 import { formatDate } from '../../../utils/date';
+import UserAvatar from '../../../components/dashboard/UserAvatar.svelte';
+import RoleBadge from '../../../components/dashboard/RoleBadge.svelte';
+import StatusBadge from '../../../components/dashboard/StatusBadge.svelte';
 
 const token = Astro.cookies.get('access_token')?.value;
 if (!token) {
@@ -165,24 +168,33 @@ const unassignedModules = allModules.filter((m: any) => !assignedIds.has(m.id));
 									<table class="w-full">
 										<thead>
 											<tr class="border-b border-[#2D3148]">
-												<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Usuario</th>
-												<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Rol</th>
-												<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Estado</th>
-												<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Logins</th>
-												<th class="text-left py-3 px-4 text-sm font-medium text-[#9CA3AF]">Último acceso</th>
+												<th class="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Usuario</th>
+												<th class="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Rol</th>
+												<th class="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Estado</th>
+												<th class="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Logins</th>
+												<th class="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Último acceso</th>
 											</tr>
 										</thead>
 										<tbody>
 											{tenantMembers.map((m: any) => (
-												<tr class="border-b border-[#2D3148] hover:bg-[#2D3148]/50 transition-colors">
+												<tr class="border-b border-[#2D3148] hover:bg-[#2D3148]/40 transition-colors">
 													<td class="py-3 px-4">
-														<div class="text-sm font-medium text-[#F9FAFB]">{m.username}</div>
-														<div class="text-xs text-[#9CA3AF]">{m.email}</div>
+														<div class="flex items-center gap-3">
+															<UserAvatar name={m.username} size="sm" class="shrink-0" />
+															<div class="min-w-0">
+																<div class="truncate text-sm font-medium text-[#F9FAFB]">{m.username}</div>
+																<div class="truncate text-xs text-[#9CA3AF]">{m.email}</div>
+															</div>
+														</div>
 													</td>
-													<td class="py-3 px-4 text-sm text-[#9CA3AF]">{m.role_tenant}</td>
-													<td class="py-3 px-4 text-sm text-[#9CA3AF]">{m.status}</td>
-													<td class="py-3 px-4 text-sm text-[#9CA3AF]">{m.login_count}</td>
-													<td class="py-3 px-4 text-sm text-[#9CA3AF]">
+													<td class="py-3 px-4">
+														<RoleBadge role={String(m.role_tenant ?? '').trim().toUpperCase()} />
+													</td>
+													<td class="py-3 px-4">
+														<StatusBadge status={String(m.status ?? '').trim().toUpperCase()} />
+													</td>
+													<td class="py-3 px-4 text-sm font-semibold tabular-nums text-[#F9FAFB]">{m.login_count}</td>
+													<td class="py-3 px-4 text-sm text-[#9CA3AF] tabular-nums">
 														{m.last_login ? formatDate(m.last_login) : '—'}
 													</td>
 												</tr>
