@@ -59,7 +59,7 @@ const MODULE_PROVIDERS: Record<string, string[]> = {
 ---
 
 <DashboardLayout title={`Gestionar: ${tenant?.name || 'Tenant'}`}>
-	<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" id="manage-tenant-container" data-token={token}>
 		<div class="space-y-6">
 			{/* Error */}
 			{error && (
@@ -211,7 +211,8 @@ const MODULE_PROVIDERS: Record<string, string[]> = {
 				btn.disabled = true;
 
 				try {
-					const token = document.cookie.split('; ').find(r => r.startsWith('access_token='))?.split('=')[1];
+					// SSR token via data-token (access_token is httpOnly, unreadable from JS)
+					const token = document.getElementById('manage-tenant-container')?.dataset.token;
 					const backendUrl = import.meta.env.PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 					if (isCurrentlyActive) {
@@ -264,7 +265,8 @@ const MODULE_PROVIDERS: Record<string, string[]> = {
 				btn.disabled = true;
 
 				try {
-					const token = document.cookie.split('; ').find(r => r.startsWith('access_token='))?.split('=')[1];
+					// SSR token via data-token (access_token is httpOnly, unreadable from JS)
+					const token = document.getElementById('manage-tenant-container')?.dataset.token;
 					const backendUrl = import.meta.env.PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 					// Get current settings

@@ -1,9 +1,10 @@
 /**
  * Tests para componente TenantUsageTable
  *
- * Contrato real (src/components/dashboard/TenantUsageTable.svelte): prop
+ * Contrato real (src/components/dashboard/TenantUsageTable.svelte): props
  * `usage` con filas { slug, name, personas, admins, activas_30d, activos,
- * ultimo_acceso }. Renderiza una tabla HTML plana con columnas Tenant
+ * ultimo_acceso } y `token` (string) con el JWT de sesión que la página
+ * recibe por SSR. Renderiza una tabla HTML plana con columnas Tenant
  * (name + slug), Personas, Admins, Activas 30d y Último acceso (fecha
  * formateada, "—" cuando ultimo_acceso es null). Con `usage` vacío muestra
  * el estado "No hay tenants con usuarios todavía".
@@ -14,18 +15,21 @@
  * extra <tr><td colspan> con los miembros del tenant SIN navegar. Carga
  * perezosa en el primer expand: GET /api/v1/tenants/by-slug/{slug} → id y
  * después GET /api/v1/tenants/{id}/users, con Authorization: Bearer
- * (cookie access_token). Cache por slug (sin refetch al re-expandir).
- * Estados: "Cargando miembros…", error (con enlace al detalle como
- * fallback) y "Sin miembros". DOM colapsado idéntico al original (la fila
- * extra solo aparece expandida).
+ * construido con la prop `token` (el token llega por SSR desde la página;
+ * la cookie access_token es httpOnly y el componente NO la lee). Cache por
+ * slug (sin refetch al re-expandir). Estados: "Cargando miembros…", error
+ * (con enlace al detalle como fallback) y "Sin miembros". DOM colapsado
+ * idéntico al original (la fila extra solo aparece expandida).
  *
  * Intentos descartados de comportamiento inexistente (si se implementara,
  * los tests fallarían): prop `loading`, testids, ordenamiento/paginación
  * internos, columna "Activos" visible, formato de fecha "N/A" en lugar
- * de "—", exclusión mutua de filas abiertas (varias pueden estar abiertas).
+ * de "—", exclusión mutua de filas abiertas (varias pueden estar abiertas),
+ * lectura de document.cookie o de la prop `token` desde cualquier sitio que
+ * no sean las cabeceras Authorization de los dos fetches.
  */
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte';
-import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import TenantUsageTable from '../../src/components/dashboard/TenantUsageTable.svelte';
 
 type UsageRow = {
@@ -37,6 +41,9 @@ type UsageRow = {
   activos: number;
   ultimo_acceso: string | null;
 };
+
+// Token de prueba: llega por prop (SSR), nunca se lee de document.cookie
+const TEST_TOKEN = 'test-token-123';
 
 const mockUsage: UsageRow[] = [
   {
@@ -72,7 +79,7 @@ describe('TenantUsageTable', () => {
   });
 
   it('debería renderizar una fila por tenant con nombre, slug y métricas', () => {
-    render(TenantUsageTable, { props: { usage: mockUsage } });
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
 
     expect(screen.getAllByRole('row')).toHaveLength(3); // cabecera + 2 filas
 
@@ -90,14 +97,14 @@ describe('TenantUsageTable', () => {
   });
 
   it('debería mostrar las cabeceras de columnas en español', () => {
-    render(TenantUsageTable, { props: { usage: mockUsage } });
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
 
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
     expect(headers).toEqual(['Tenant', 'Personas', 'Admins', 'Activas 30d', 'Último acceso']);
   });
 
   it('debería formatear la fecha de último acceso cuando no es null', () => {
-    render(TenantUsageTable, { props: { usage: mockUsage } });
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
 
     const cell = rowFor('acme').querySelector('td:last-child');
     // Fecha formateada en es-ES (dd/mm/yyyy ...), no el ISO crudo
@@ -106,7 +113,7 @@ describe('TenantUsageTable', () => {
   });
 
   it('debería mostrar "—" cuando ultimo_acceso es null', () => {
-    render(TenantUsageTable, { props: { usage: mockUsage } });
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
 
     const cell = rowFor('globex').querySelector('td:last-child');
     expect(cell!.textContent).toContain('—');
@@ -114,7 +121,7 @@ describe('TenantUsageTable', () => {
   });
 
   it('debería enlazar cada fila al detalle del tenant (/dashboard/tenants/{slug})', () => {
-    render(TenantUsageTable, { props: { usage: mockUsage } });
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
 
     const links = screen.getAllByRole('link');
     expect(links).toHaveLength(2);
@@ -123,7 +130,7 @@ describe('TenantUsageTable', () => {
   });
 
   it('debería mostrar el estado vacío cuando usage está vacío', () => {
-    render(TenantUsageTable, { props: { usage: [] } });
+    render(TenantUsageTable, { props: { usage: [], token: TEST_TOKEN } });
 
     expect(screen.getByText('No hay tenants con usuarios todavía')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
@@ -156,17 +163,13 @@ function okResponse(data: unknown) {
 }
 
 describe('TenantUsageTable — expansión inline de miembros', () => {
-  beforeEach(() => {
-    document.cookie = 'access_token=test-token-123';
-  });
-
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
   });
 
   it('debería renderizar el chevron con aria-expanded=false y no añadir filas extra en colapsado', () => {
-    render(TenantUsageTable, { props: { usage: mockUsage } });
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
 
     const buttons = screen.getAllByRole('button', { name: 'Ver miembros de Acme Corp' });
     expect(buttons).toHaveLength(1);
@@ -182,7 +185,7 @@ describe('TenantUsageTable — expansión inline de miembros', () => {
       .mockResolvedValueOnce(okResponse([alice]));
     vi.stubGlobal('fetch', fetchMock);
 
-    render(TenantUsageTable, { props: { usage: mockUsage } });
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
     await fireEvent.click(screen.getByRole('button', { name: 'Ver miembros de Acme Corp' }));
 
     await screen.findByText('alice');
@@ -197,9 +200,12 @@ describe('TenantUsageTable — expansión inline de miembros', () => {
     expect(urls).toHaveLength(2);
     expect(urls[0]).toContain('/api/v1/tenants/by-slug/acme');
     expect(urls[1]).toContain('/api/v1/tenants/t-acme/users');
-    expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toMatchObject({
-      Authorization: 'Bearer test-token-123',
-    });
+    // Los DOS fetches (by-slug y users) envían el token de la prop
+    for (const call of fetchMock.mock.calls) {
+      expect((call[1] as RequestInit).headers).toMatchObject({
+        Authorization: `Bearer ${TEST_TOKEN}`,
+      });
+    }
   });
 
   it('al re-expandir no debería volver a fetchear (cache por slug)', async () => {
@@ -208,7 +214,7 @@ describe('TenantUsageTable — expansión inline de miembros', () => {
       .mockResolvedValueOnce(okResponse([alice]));
     vi.stubGlobal('fetch', fetchMock);
 
-    render(TenantUsageTable, { props: { usage: mockUsage } });
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
     const button = () => screen.getByRole('button', { name: 'Ver miembros de Acme Corp' });
 
     await fireEvent.click(button());
@@ -227,7 +233,7 @@ describe('TenantUsageTable — expansión inline de miembros', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({ detail: 'boom' }) } as Response);
     vi.stubGlobal('fetch', fetchMock);
 
-    render(TenantUsageTable, { props: { usage: mockUsage } });
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
     await fireEvent.click(screen.getByRole('button', { name: 'Ver miembros de Acme Corp' }));
 
     const error = await screen.findByText(/No se pudieron cargar los miembros/);
@@ -246,7 +252,7 @@ describe('TenantUsageTable — expansión inline de miembros', () => {
       .mockResolvedValueOnce(okResponse([]));
     vi.stubGlobal('fetch', fetchMock);
 
-    render(TenantUsageTable, { props: { usage: mockUsage } });
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
     await fireEvent.click(screen.getByRole('button', { name: 'Ver miembros de Acme Corp' }));
 
     expect(await screen.findByText('Sin miembros')).toBeInTheDocument();
@@ -258,7 +264,7 @@ describe('TenantUsageTable — expansión inline de miembros', () => {
       .mockResolvedValueOnce(okResponse([alice]));
     vi.stubGlobal('fetch', fetchMock);
 
-    render(TenantUsageTable, { props: { usage: mockUsage } });
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
     await fireEvent.click(screen.getByRole('button', { name: 'Ver miembros de Acme Corp' }));
 
     // La ruta no cambia (sin navegación) y el toggle se ejecutó (miembros visibles)

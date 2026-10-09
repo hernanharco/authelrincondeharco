@@ -29,7 +29,9 @@
     members: TenantMember[] | null;
   }
 
-  let { usage }: { usage: UsageRow[] } = $props();
+  // `token` lo inyecta la página desde el SSR (cookie access_token httpOnly,
+  // ilegible desde JS y el frontend y el backend son dominios distintos)
+  let { usage, token }: { usage: UsageRow[]; token: string } = $props();
 
   // Cache de miembros por slug: sin refetch al re-expandir
   const memberCache = new Map<string, TenantMember[]>();
@@ -55,18 +57,11 @@
     return rowStates[slug];
   }
 
-  // SSR-safe: solo se lee document.cookie en el navegador (patrón de manage.astro)
-  function getAuthToken(): string | null {
-    if (typeof document === 'undefined') return null;
-    return document.cookie.split('; ').find((r) => r.startsWith('access_token='))?.split('=')[1] ?? null;
-  }
-
   async function loadMembers(slug: string): Promise<void> {
     const state = ensureState(slug);
     state.loading = true;
     state.error = null;
     try {
-      const token = getAuthToken();
       const headers = { Authorization: `Bearer ${token}` };
       // Paso A: resolver el id del tenant por slug
       const tenantRes = await fetch(apiUrl(ENDPOINTS.tenants.bySlug(slug)), { headers });

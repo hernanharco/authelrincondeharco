@@ -75,23 +75,30 @@ servicios cuyo código/imagen cambió).
 - [x] **T3 — Traer a `main` el ajuste de compose del servidor** — hecho vía
       cherry-pick `44882ac` → `af6bc07` en esta rama (el `reset --hard` del
       webhook no pierde el healthcheck de PG a 30s ni la red externa).
-- [ ] **T4 — Smoke test** — Sin secrets `HETZNER_*` (el SSH fue eliminado del
-      workflow; ninguna credencial nueva en GitHub). Merge del PR → el webhook
-      dispara el deploy y Actions corre el build GHCR. Verificación: run de
-      Actions verde + `git log` en el server en `origin/main` + `/health` 200 +
-      endpoint `tenants/usage` sigue vivo.
-- [ ] **T5 — Actualizar la doc de `core/`** — tabla de proyectos: authCore
-      "❌ Falta Vercel" está desactualizado (hoy está conectado) y marcar el
-      backend como auto-deploy. Nota: `core/` **no es repo git** (sin `.git`),
-      así que es una edición de archivos locales.
+- [x] **T4 — Smoke test** — ✅ 2026-10-08 (merge PR #16). Sin secrets `HETZNER_*`
+      (el SSH fue eliminado del workflow; ninguna credencial nueva en GitHub).
+      Resultado: log del webhook `Push to main` → `Deploying` → server en
+      `b4cc86f` (= `origin/main`); `api` y `web` recreados, `postgres`/`redis`
+      intactos; `/health` **200**; `tenants/usage` y `tenants/{id}/users`
+      **401** (vivos, piden auth) vía `api-authcore.` + dominio del ecosistema;
+      red externa conservada; healthcheck de PG en **30s**; Actions
+      "Build Backend" **completed/success** (GHCR).
+- [x] **T5 — Actualizar la doc de `core/`** — hecho (nota: `core/` **no es repo
+      git**, fue edición local). `GITHUB-ACTIONS-HETZNER.md`: cabecera «⚠️
+      Corrección importante: el job SSH no funciona» con la evidencia (ufw +
+      comentario de vidasaludable) y fila authCore corregida a `✅ Vercel`.
+      `DEPLOY-PIPELINE.md`: fecha, diagrama, bloque «⚠️ el deploy real NO lo
+      hace Actions» con el flujo webhook paso a paso, fila authCore
+      `Vercel ✅ | Hetzner :8000 | ✅ (webhook) | Activo`, y 2 typos del nombre
+      del repo corregidos.
 - [x] **T6 — Webhook de deploy para authCore** —
       (a) ✅ symlink `/opt/authelrincondeharco → /opt/authcore` creado y
       verificado (`git -C` resuelve al repo);
       (b) ✅ webhook registrado en GitHub `id 694334756` →
       `https://webhook.rincom.es/webhook`, content-type `json`, eventos `push`,
       secret = `WEBHOOK_SECRET` (64 hex) del `/opt/deploy-webhook/.env`;
-      (c) ⏳ smoke test: push a `main` → verificar `reset --hard` +
-      `compose up -d --build` en el server y `/health` 200.
+      (c) ✅ smoke test: push a `main` (merge PR #16) → deploy ejecutado y
+      verificado (ver T4).
       Verificación de conectividad ya hecha: ping de GitHub recibido con firma
       HMAC válida (log `Ignored: ... from authelrincondeharco`, no
       `Invalid signature`) y el push de la rama descartado correctamente por no
