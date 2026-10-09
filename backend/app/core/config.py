@@ -67,6 +67,15 @@ class Settings(BaseSettings):
     # --- JWT Settings ---
     access_token_expire_minutes: int = Field(120, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     algorithm: str = Field("RS256", alias="ALGORITHM")
+    # Claim `iss` de los access/refresh tokens: la base URL del hub.
+    # Los spokes (p. ej. Prixline) lo exigen al verificar (AUTH-FLOW.md);
+    # el hub y los spokes comparten la clave RS256, así que sin `iss` un
+    # token de cualquier otro spoke abriría cualquier admin. En producción
+    # DEBE sobre escribirse con la URL pública (JWT_ISSUER en compose.prod):
+    # https://api-authcore.rincom.es
+    jwt_issuer: str = Field("http://localhost:8000", alias="JWT_ISSUER")
+    # Claim `aud` opcional: si se configura (JWT_AUDIENCE), viaja en el token.
+    jwt_audience: Optional[str] = Field(None, alias="JWT_AUDIENCE")
     API_V1_STR: str = "/api/v1"
 
     # --- Claves RSA para RS256 ---
