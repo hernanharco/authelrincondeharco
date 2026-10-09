@@ -200,7 +200,7 @@ try {
 				tenantUsage && (
 					<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
 						<h3 class="text-lg font-semibold text-[#F9FAFB] mb-4">Uso por tenants</h3>
-						<TenantUsageTable usage={tenantUsage} />
+						<TenantUsageTable usage={tenantUsage} token={token} client:load />
 					</div>
 				)
 			}
