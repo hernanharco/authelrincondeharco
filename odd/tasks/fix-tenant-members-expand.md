@@ -116,9 +116,16 @@ were left untouched.
 - Structural proof of hydration: `grep -rl "No se pudieron cargar los miembros" frontend/dist/client/_astro/*.js`
   matched nothing before, matches `TenantUsageTable.bVoG8vfz.js` after.
 
-**Pending / not run**: no dev-server or production smoke test was executed against the
-live backend, so the SSR island serialization is proven at build level only. Verify by
-hand after deploy: open `/dashboard`, expand a tenant row, confirm the members render.
+**Local E2E check (2026-10-09, Playwright + Chrome against the running dev stack)**: session cookie
+valid for `localhost:4321`; `/dashboard` loaded with the "Uso por tenants" card and the
+`El Rincón de Harco` row present; chevron `Ver miembros de El Rincón de Harco` went
+`aria-expanded` **false → true**; `GET /api/v1/tenants/by-slug/rincom` **200** and
+`GET /api/v1/tenants/{id}/users` **200**; the panel rendered `dev_admin`,
+`dev@authcore.dev`, `ADMIN`, `ACTIVE`; **0** error messages, **0** "Sin miembros",
+**0** "Cargando miembros…", **0** console errors. Screenshot: `/tmp/hit-test/card-expandida.png`.
+
+**Still pending**: no production smoke test. Verify after deploy: open `/dashboard` on
+`auth.rincom.es`, expand a tenant row, confirm the members render.
 
 ## Forecast / delivery
 
