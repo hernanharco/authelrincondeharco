@@ -42,6 +42,15 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"
+    volumes:
+      # JWT RS256 signing keys. crypto.py (load_or_generate_keys) creates them
+      # on first boot if missing — WITHOUT this volume every container
+      # recreation rotated the key pair under the same kid authcore-key-1 and
+      # silently broke every spoke (Supabase Third-Party Auth keeps a cached
+      # resolved_jwks snapshot that never self-refreshes → mass 401 PGRST301,
+      # incident 2026-10-09). Mirrors the dev compose.yaml; the volume key
+      # `rsa_keys` yields the docker volume authcore_rsa_keys (project prefix).
+      - rsa_keys:/app/keys
     environment:
       # Entorno
       ENVIRONMENT: production
@@ -145,6 +154,7 @@ services:
 volumes:
   pgdata:
   redisdata:
+  rsa_keys:
 
 networks:
   elrincondeharco_net:
