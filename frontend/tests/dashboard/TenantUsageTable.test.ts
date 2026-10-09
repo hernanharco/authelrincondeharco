@@ -4,10 +4,18 @@
  * Contrato real (src/components/dashboard/TenantUsageTable.svelte): props
  * `usage` con filas { slug, name, personas, admins, activas_30d, activos,
  * ultimo_acceso } y `token` (string) con el JWT de sesión que la página
- * recibe por SSR. Renderiza una tabla HTML plana con columnas Tenant
- * (name + slug), Personas, Admins, Activas 30d y Último acceso (fecha
- * formateada, "—" cuando ultimo_acceso es null). Con `usage` vacío muestra
- * el estado "No hay tenants con usuarios todavía".
+ * recibe por SSR. Renderiza una tabla con columnas Tenant (posición +
+ * avatar de iniciales + name sobre slug), Personas, Admins, Activas 30d y
+ * Último acceso (fecha formateada, "—" cuando ultimo_acceso es null).
+ * Las métricas se muestran como números tabulares y las cabeceras en
+ * versalitas. Con `usage` vacío muestra el estado "No hay tenants con
+ * usuarios todavía".
+ *
+ * Presentación de los miembros expandidos: por cada persona, avatar de
+ * iniciales (UserAvatar), username en negrita con el email debajo, badges
+ * de rol y estado (RoleBadge/StatusBadge, que traducen ADMIN→"Admin" y
+ * ACTIVE→"Activo") y el último acceso alineado a la derecha. El rol y el
+ * estado se normalizan a mayúsculas antes de pasarlos a los badges.
  *
  * Cada fila es un enlace al detalle del tenant (/dashboard/tenants/{slug})
  * (stretched-link). Además, cada fila tiene un botón chevron
@@ -120,6 +128,14 @@ describe('TenantUsageTable', () => {
     expect(cell!.textContent).not.toMatch(/\d{2}\/\d{2}\/\d{4}/);
   });
 
+  it('debería numerar las filas por posición (1 para la primera)', () => {
+    render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
+
+    // El número de posición abre el contenido de la fila del tenant
+    expect(rowFor('acme')).toHaveTextContent(/^1/);
+    expect(rowFor('globex')).toHaveTextContent(/^2/);
+  });
+
   it('debería enlazar cada fila al detalle del tenant (/dashboard/tenants/{slug})', () => {
     render(TenantUsageTable, { props: { usage: mockUsage, token: TEST_TOKEN } });
 
@@ -190,8 +206,15 @@ describe('TenantUsageTable — expansión inline de miembros', () => {
 
     await screen.findByText('alice');
     expect(screen.getByText('alice@acme.test')).toBeInTheDocument();
-    expect(screen.getByText('admin')).toBeInTheDocument();
-    expect(screen.getByText('active')).toBeInTheDocument();
+    // Rol y estado como badges traducidos (RoleBadge/StatusBadge)
+    expect(screen.getByText('Admin')).toBeInTheDocument();
+    expect(screen.getByText('Activo')).toBeInTheDocument();
+    // Avatar de iniciales del miembro (UserAvatar sobre el username)
+    expect(screen.getByText('A')).toBeInTheDocument();
+    // Último acceso del miembro formateado (dd/mm/yyyy), no el ISO crudo
+    const memberRow = screen.getByText('alice').closest('li');
+    expect(memberRow!.textContent).toMatch(/\d{2}\/\d{2}\/\d{4}/);
+    expect(memberRow!.textContent).not.toContain('2024-05-10T14:30:00Z');
 
     const button = screen.getByRole('button', { name: 'Ver miembros de Acme Corp' });
     expect(button).toHaveAttribute('aria-expanded', 'true');
