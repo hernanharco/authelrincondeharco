@@ -91,8 +91,17 @@ async def _hub_token(user: User, *, tenant: Tenant | None = None) -> str:
 
 
 def _decode(token: str) -> dict:
-    """Decodifica y verifica un JWT con la clave pública del hub."""
-    return jwt.decode(token, get_public_key(), algorithms=[settings.algorithm])
+    """Decodifica y verifica un JWT con la clave pública del hub.
+
+    Declara `audience`: con `JWT_AUDIENCE` configurado el token lleva `aud`
+    y python-jose lanza `Invalid audience` si no se declara (mismo trato que
+    los decoders de producción en T2)."""
+    return jwt.decode(
+        token,
+        get_public_key(),
+        algorithms=[settings.algorithm],
+        audience=settings.jwt_audience,
+    )
 
 
 def _b64url_decode(value: str) -> bytes:
@@ -263,7 +272,12 @@ class TestDataToken:
             )
             .decode()
         )
-        claims = jwt.decode(data["access_token"], public_pem, algorithms=["RS256"])
+        claims = jwt.decode(
+            data["access_token"],
+            public_pem,
+            algorithms=["RS256"],
+            audience=settings.jwt_audience,
+        )
         assert claims["sub"] == str(user.id)
         assert claims["role"] == "authenticated"
 
