@@ -52,7 +52,12 @@ async def get_hub_token_claims(token: str = Depends(oauth2_scheme)) -> dict[str,
     se devuelve `{}`: el 401 lo garantiza la dependencia de usuario.
     """
     try:
-        return jwt.decode(token, get_public_key(), algorithms=[settings.algorithm])
+        return jwt.decode(
+            token,
+            get_public_key(),
+            algorithms=[settings.algorithm],
+            audience=settings.jwt_audience,
+        )
     except JWTError:
         return {}
 

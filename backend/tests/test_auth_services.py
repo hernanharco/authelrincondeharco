@@ -395,6 +395,36 @@ class TestTokenService:
         )
         assert payload["aud"] == "prixline"
 
+    async def test_decoders_declare_configured_audience(self, token_service, monkeypatch):
+        """`verify_token` (refresh) y `get_token_payload` decodifican tokens con
+        `aud` declarando `audience` cuando JWT_AUDIENCE está configurado.
+
+        python-jose lanza `JWTClaimsError: Invalid audience` si el token lleva
+        `aud` y el decode no lo declara → refresh y lectura de claims
+        devolverían None."""
+        from jose import jwt as jose_jwt
+
+        from app.core.config import settings
+        from app.core.crypto import get_public_key
+
+        monkeypatch.setattr(settings, "jwt_audience", "prixline")
+        token, _ = await token_service.create_access_token(
+            {"sub": "123", "type": "access"}
+        )
+
+        minted = jose_jwt.decode(
+            token, get_public_key(), algorithms=[settings.algorithm], audience="prixline"
+        )
+        assert minted["aud"] == "prixline"
+
+        verified = await token_service.verify_token(token)
+        assert verified is not None
+        assert verified["aud"] == "prixline"
+
+        payload = token_service.get_token_payload(token)
+        assert payload is not None
+        assert payload["aud"] == "prixline"
+
     async def test_create_access_token_with_expires_delta(self, token_service):
         token, expires_at = await token_service.create_access_token(
             {"sub": "123"}, expires_delta=60

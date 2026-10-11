@@ -339,3 +339,40 @@ class TestDataToken:
         assert claims["type"] == "data"
         assert "tenant" not in claims
         assert "email" not in claims
+
+    async def test_hub_token_with_configured_aud_is_accepted(
+        self, client, db_session, monkeypatch
+    ):
+        """Con JWT_AUDIENCE configurado el hub JWT lleva `aud` y DEBE ser aceptado:
+        `get_current_user` (security) lo decodifica para autorizar la petición y
+        `get_hub_token_claims` (data_token) para heredar el claim `tenant`.
+
+        python-jose lanza `JWTClaimsError: Invalid audience` cuando el token
+        lleva `aud` y el decode no lo declara → 401 y tenant perdido."""
+        from jose import jwt as jose_jwt
+
+        monkeypatch.setattr(settings, "jwt_audience", "prixline")
+
+        tenant = await _create_tenant(db_session, slug="prixline")
+        user = await _create_user(db_session, tenant_id=tenant.id)
+        hub = await _hub_token(user, tenant=tenant)
+
+        # El hub JWT emitido sí lleva el claim aud
+        minted = jose_jwt.decode(
+            hub, get_public_key(), algorithms=[settings.algorithm], audience="prixline"
+        )
+        assert minted["aud"] == "prixline"
+
+        response = await client.post(
+            DATA_TOKEN_URL, headers={"Authorization": f"Bearer {hub}"}
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+
+        claims = jose_jwt.decode(
+            response.json()["access_token"],
+            get_public_key(),
+            algorithms=[settings.algorithm],
+            audience="prixline",
+        )
+        assert claims["aud"] == "prixline"
+        assert claims["tenant"]["slug"] == "prixline"

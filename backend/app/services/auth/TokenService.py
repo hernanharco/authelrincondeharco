@@ -72,8 +72,13 @@ class TokenService(ITokenService):
             if await self.is_token_revoked(token):
                 return None
 
+            # `audience` explícito: python-jose lo exige en cuanto el token
+            # lleva `aud` (JWT_AUDIENCE); sin él el refresh devolvería None.
             payload = jwt.decode(
-                token, self._public_key, algorithms=[self.algorithm]
+                token,
+                self._public_key,
+                algorithms=[self.algorithm],
+                audience=settings.jwt_audience,
             )
             return payload
         except JWTError:
@@ -110,6 +115,7 @@ class TokenService(ITokenService):
                 token,
                 self._public_key,
                 algorithms=[self.algorithm],
+                audience=settings.jwt_audience,
                 options={"verify_exp": False},
             )
         except JWTError:

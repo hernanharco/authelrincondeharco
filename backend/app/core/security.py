@@ -86,7 +86,11 @@ async def get_current_user(
     )
     try:
         public_key = get_public_key()
-        payload = jwt.decode(token, public_key, algorithms=[settings.algorithm])
+        # `audience` explícito: python-jose lanza `Invalid audience` si el
+        # token lleva `aud` (JWT_AUDIENCE) y el decode no lo declara.
+        payload = jwt.decode(
+            token, public_key, algorithms=[settings.algorithm], audience=settings.jwt_audience
+        )
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
