@@ -75,6 +75,11 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: "120"
       # Claim `iss` de los tokens (la exigen los spokes al verificar)
       JWT_ISSUER: ${JWT_ISSUER:-http://localhost:8000}
+      # Claim `aud` del token (decisión 2026-10-11: Prixline). Los decoders
+      # internos del hub pasan `audience` al decodificar (python-jose lo
+      # exige en cuanto el token lleva `aud`): TokenService, security y
+      # data_token.
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-prixline}
       ENVIRONMENT: development
       DEBUG: "true"
       APP_DOMAIN: localhost

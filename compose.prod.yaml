@@ -68,6 +68,10 @@ services:
       # JWT_AUDIENCE para emitir `aud` (sólo si TODOS los verificadores
       # decodifican declarando audience).
       JWT_ISSUER: ${JWT_ISSUER:-https://api-authcore.rincom.es}
+      # Claim `aud` (decisión 2026-10-11: Prixline). Es GLOBAL: todos los
+      # tokens del hub viajan con este `aud`. Si un spoke exige el suyo
+      # propio hay que derivarlo del origin del redirect_to en google.py.
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-prixline}
 
       # Base de Datos
       PGHOST: postgres
