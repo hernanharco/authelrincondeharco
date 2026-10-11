@@ -63,6 +63,11 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ALGORITHM: RS256
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-120}
+      # Claim `iss` de los tokens: URL pública del hub (la exigen los
+      # spokes al verificar, p. ej. Prixline). Opcional:
+      # JWT_AUDIENCE para emitir `aud` (sólo si TODOS los verificadores
+      # decodifican declarando audience).
+      JWT_ISSUER: ${JWT_ISSUER:-https://api-authcore.rincom.es}
 
       # Base de Datos
       PGHOST: postgres

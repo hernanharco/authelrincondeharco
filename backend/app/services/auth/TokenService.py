@@ -48,7 +48,13 @@ class TokenService(ITokenService):
             "exp": expire,
             "iat": now,
             "jti": str(uuid.uuid4()),
+            # `iss` siempre (decisión 2026-10-09): los spokes validan issuer
+            # al verificar y TODOS los spokes comparten la clave RS256.
+            "iss": settings.jwt_issuer,
         })
+        # `aud` opcional: sólo si JWT_AUDIENCE está configurado.
+        if settings.jwt_audience:
+            to_encode["aud"] = settings.jwt_audience
         encoded_jwt = jwt.encode(
             to_encode,
             self._private_key,

@@ -355,6 +355,46 @@ class TestTokenService:
         assert isinstance(expires_at, datetime)
         assert expires_at > datetime.now(timezone.utc)
 
+    async def test_access_token_includes_iss_claim(self, token_service):
+        """El access token SIEMPRE lleva `iss` (decisión A 2026-10-09): los
+        spokes (p. ej. Prixline) validan issuer y en prod el hub y los spokes
+        comparten clave RS256, así que sin `iss` un token de cualquier otro
+        spoke abriría cualquier admin."""
+        from app.core.config import settings
+
+        token, _ = await token_service.create_access_token({"sub": "123"})
+        payload = token_service.get_token_payload(token)
+
+        assert payload["iss"] == settings.jwt_issuer
+        assert payload["iss"]  # nunca vacío
+
+    async def test_access_token_aud_only_when_configured(self, token_service, monkeypatch):
+        """`aud` es opcional (sólo si JWT_AUDIENCE está configurado)."""
+        from app.core.config import settings
+
+        # Sin configurar: la clave no aparece
+        monkeypatch.setattr(settings, "jwt_audience", None)
+        token, _ = await token_service.create_access_token({"sub": "123"})
+        assert "aud" not in token_service.get_token_payload(token)
+
+        # Configurado: viaja en el token. Se decodifica pasando `audience`
+        # explícito: python-jose lo exige en cuanto el token lleva `aud`
+        # (get_token_payload, que no lo pasa, devolvería None) — quien
+        # verifique con aud debe declararlo igual.
+        from jose import jwt as jose_jwt
+
+        from app.core.crypto import get_public_key
+
+        monkeypatch.setattr(settings, "jwt_audience", "prixline")
+        token, _ = await token_service.create_access_token({"sub": "123"})
+        payload = jose_jwt.decode(
+            token,
+            get_public_key(),
+            algorithms=["RS256"],
+            audience="prixline",
+        )
+        assert payload["aud"] == "prixline"
+
     async def test_create_access_token_with_expires_delta(self, token_service):
         token, expires_at = await token_service.create_access_token(
             {"sub": "123"}, expires_delta=60
