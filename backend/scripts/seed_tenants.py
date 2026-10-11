@@ -31,6 +31,12 @@ TENANTS = [
         "website_url": "https://vidasaludable.rincom.es",
         "admin_url": "https://auth.rincom.es/dashboard/tenants/vidasaludable",
     },
+    {
+        "slug": "prixline",
+        "name": "Prixline",
+        "website_url": "https://prixline.rincom.es",
+        "admin_url": "https://auth.rincom.es/dashboard/tenants/prixline",
+    },
 ]
 
 MODULES = [
