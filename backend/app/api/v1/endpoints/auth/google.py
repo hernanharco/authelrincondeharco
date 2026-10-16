@@ -86,6 +86,36 @@ def _is_allowed_redirect(url: str) -> bool:
     return any(_host_matches(host, allowed) for allowed in _allowed_redirect_hosts())
 
 
+def _is_allowed_app_redirect(url: str) -> bool:
+    """T6: URL de esquema propio (p. ej. `riderdefensa://auth/callback`) que
+    está declarada en ALLOWED_REDIRECT_APP_URLS.
+
+    El esquema de app es el único camino confiable para devolver el token
+    cuando el login corre en el navegador de un APK: el navegador no maneja
+    el esquema ⇒ el sistema operativo abre la app que lo declara. Se valida
+    esquema + host + path (exacto o subcamino) contra la lista declarada.
+    """
+    allowed = [str(u) for u in (settings.allowed_redirect_app_urls or [])]
+    if not allowed:
+        return False
+    parsed = urlparse(url)
+    scheme = (parsed.scheme or "").lower()
+    if not scheme or scheme in ("http", "https"):
+        return False
+    host = (parsed.hostname or "").lower()
+    path = parsed.path or ""
+    for entry in allowed:
+        ref = urlparse(entry)
+        if (ref.scheme or "").lower() != scheme:
+            continue
+        if (ref.hostname or "").lower() != host:
+            continue
+        ref_path = ref.path or ""
+        if path == ref_path or path.startswith(f"{ref_path}/"):
+            return True
+    return False
+
+
 def _get_frontend_redirect(state: str = "") -> str:
     """
     Extrae el redirect_to del state de OAuth.
@@ -102,6 +132,18 @@ def _get_frontend_redirect(state: str = "") -> str:
         redirect_to = payload.get("redirect_to", "")
         if not redirect_to:
             return default
+        scheme = (urlparse(redirect_to).scheme or "").lower()
+        if scheme and scheme not in ("http", "https"):
+            # Esquema de app: solo si está declarado (se devuelve tal cual, con
+            # su query). Si no, NUNCA se redirige ahí — y tampoco se trata como
+            # ruta relativa (sería pegar el esquema a FRONTEND_URL).
+            if _is_allowed_app_redirect(redirect_to):
+                return redirect_to
+            logging.warning(
+                "⛔ redirect_to rechazado (esquema de app no permitido): %s",
+                redirect_to,
+            )
+            return f"{FRONTEND_URL}/login"
         # Si ya es URL completa, usarla directamente
         if redirect_to.startswith("http://") or redirect_to.startswith("https://"):
             if _is_allowed_redirect(redirect_to):

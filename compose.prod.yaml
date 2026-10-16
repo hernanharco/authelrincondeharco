@@ -99,6 +99,9 @@ services:
       # Deployment que use otro dominio DEBE declararlo acá; vacío = solo el
       # frontend del hub (sin spokes).
       ALLOWED_REDIRECT_ORIGINS: ${ALLOWED_REDIRECT_ORIGINS:-rincom.es}
+      # Esquemas de app que devuelven el login desde un APK (p. ej. el
+      # contenedor Capacitor de rider-defensa). Vacío = nadie.
+      ALLOWED_REDIRECT_APP_URLS: ${ALLOWED_REDIRECT_APP_URLS:-riderdefensa://auth/callback}
 
       # Cloudinary (opcional)
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}

@@ -131,6 +131,35 @@ class Settings(BaseSettings):
         default_factory=lambda: ["rincom.es"], alias="ALLOWED_REDIRECT_ORIGINS"
     )
 
+    # --- Esquemas de app permitidos (APK que devuelve el login) ---
+    # URLs completas de esquema propio, p. ej. riderdefensa://auth/callback.
+    # Son las únicas que pueden recibir el hub token cuando el flujo corre en
+    # una app nativa (el navegador no maneja ese esquema ⇒ el SO abre la app).
+    # Vacío por defecto (fail closed): cada deployment declara sus apps.
+    allowed_redirect_app_urls: Any = Field(
+        default_factory=list, alias="ALLOWED_REDIRECT_APP_URLS"
+    )
+
+    @field_validator("allowed_redirect_app_urls", mode="before")
+    @classmethod
+    def assemble_allowed_redirect_app_urls(cls, v: Any) -> List[str]:
+        """Parsea la lista de URLs de app: lista, JSON o coma-separada."""
+        if not v:
+            return []
+        if isinstance(v, list):
+            return [str(item).strip() for item in v if str(item).strip()]
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    data = json.loads(v)
+                    if isinstance(data, list):
+                        return [str(i).strip() for i in data if str(i).strip()]
+                except (json.JSONDecodeError, TypeError):
+                    v = v.strip("[]")
+            return [i.strip().strip('"').strip("'") for i in v.split(",") if i.strip()]
+        return []
+
     @field_validator("allowed_redirect_origins", mode="before")
     @classmethod
     def assemble_allowed_redirect_origins(cls, v: Any) -> List[str]:

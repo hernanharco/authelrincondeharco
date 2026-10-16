@@ -507,6 +507,60 @@ class TestAllowedRedirectPolicy:
         assert "token=" not in location
 
 
+class TestAllowedAppRedirect:
+    """T6 (apk-login-deeplink): el esquema propio del APK
+    (`riderdefensa://auth/callback`) solo recibe el token si está declarado
+    en ALLOWED_REDIRECT_APP_URLS. Sin declaración = fail closed.
+    """
+
+    APP_URL = "riderdefensa://auth/callback"
+
+    async def test_declared_app_url_is_kept(self, monkeypatch):
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        state = json.dumps({"redirect_to": self.APP_URL})
+        assert _get_frontend_redirect(state) == self.APP_URL
+
+    async def test_undeclared_app_url_is_rejected(self):
+        """Default (lista vacía) → nunca se redirige a un esquema de app."""
+        state = json.dumps({"redirect_to": self.APP_URL})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_other_app_path_is_rejected(self, monkeypatch):
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        for bad in (
+            "riderdefensa://auth/otra",
+            "riderdefensa://auth/callbackx",
+            "riderdefensa://evil/callback",
+            "otraapp://auth/callback",
+        ):
+            state = json.dumps({"redirect_to": bad})
+            assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login", bad
+
+    async def test_app_url_with_query_is_kept(self, monkeypatch):
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        url = f"{self.APP_URL}?status=pending"
+        state = json.dumps({"redirect_to": url})
+        assert _get_frontend_redirect(state) == url
+
+    async def test_google_callback_app_url_carries_token(
+        self, client, db_session, test_user, mock_google_exchange, monkeypatch
+    ):
+        """Integración: con el esquema declarado, el token sale hacia la app."""
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        mock_google_exchange({"email": "test@example.com", "name": "Test User"})
+        db_session.add(test_user)
+        await db_session.commit()
+
+        state = json.dumps({"redirect_to": self.APP_URL})
+        response = await client.get(
+            "/api/v1/auth/callback", params={"code": "test_code", "state": state}
+        )
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        location = response.headers["location"]
+        assert location.startswith(f"{self.APP_URL}?token=")
+
+
 # --- FIXTURES ---
 
 @pytest.fixture
