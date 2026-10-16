@@ -94,6 +94,16 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-https://authcore.vercel.app}
       BACKEND_URL: ${BACKEND_URL:-https://api-authcore.elrincondeharco.com}
+      # Redirects post-login permitidos (spokes): dominios registrables que
+      # pueden recibir el hub token en ?token=. Subdominios incluidos.
+      # Deployment que use otro dominio DEBE declararlo acá; vacío = solo el
+      # frontend del hub (sin spokes).
+      ALLOWED_REDIRECT_ORIGINS: ${ALLOWED_REDIRECT_ORIGINS:-rincom.es}
+      # Esquemas de app que devuelven el login desde un APK (p. ej. el
+      # contenedor Capacitor de rider-defensa). Vacío = nadie: CADA
+      # deployment debe declararlo explícitamente (no se defaultea: activar
+      # un esquema de app es una decisión de seguridad, no un default).
+      ALLOWED_REDIRECT_APP_URLS: ${ALLOWED_REDIRECT_APP_URLS:-}
 
       # Cloudinary (opcional)
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}

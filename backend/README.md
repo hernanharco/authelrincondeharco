@@ -80,7 +80,36 @@ GOOGLE_CLIENT_SECRET=tu-google-client-secret
 # App
 APP_DOMAIN=tu-dominio.com
 TITLE_BACKEND=AuthCore Backend
+
+# Redirects post-login permitidos (spokes que reciben ?token=)
+# Dominios registrables, sin esquema ni ruta; los subdominios quedan
+# incluidos (rincom.es ⇒ riderdefensa.rincom.es, www.rincom.es).
+# Default: rincom.es. Vacío explícito = solo el frontend del hub.
+ALLOWED_REDIRECT_ORIGINS=rincom.es
+
+# Esquemas de app que devuelven el login desde un APK nativo
+# (el navegador no maneja riderdefensa:// ⇒ el SO abre la app que lo declara).
+# URLs completas, sin query. Vacío = fail closed (nadie).
+ALLOWED_REDIRECT_APP_URLS=riderdefensa://auth/callback
 ```
+
+#### Seguridad del redirect post-login
+
+Al terminar el login de Google, authCore redirige al `redirect_to` que el
+spoke envió y le apende el hub JWT en `?token=`. Sin allowlist eso era un
+**open redirect que filtraba el token** a cualquier dominio. Hoy el destino
+absoluto solo se acepta si su host está declarado en
+`ALLOWED_REDIRECT_ORIGINS` (o es el host del `FRONTEND_URL`) y el esquema es
+`https` en producción; si no, el usuario cae en el login del hub **sin**
+token. Un deployment con spokes propios debe declararlos en esa variable.
+
+Cuando el login corre dentro de un APK (contenedor Capacitor de
+rider-defensa), el redirect usa el **esquema propio**
+`riderdefensa://auth/callback`: el navegador no lo maneja y el sistema
+operativo abre la app, que recibe el token. Esos destinos se declaran en
+`ALLOWED_REDIRECT_APP_URLS` (vacío por defecto = fail closed); un esquema no
+declarado cae en el login del hub sin token.
+
 
 ## Comandos Disponibles
 

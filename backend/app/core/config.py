@@ -119,6 +119,67 @@ class Settings(BaseSettings):
     frontend_origin: Optional[str] = Field(None, alias="FRONTEND_ORIGIN")
     backend_url: str = Field("http://localhost:8000", alias="BACKEND_URL")
 
+    # --- Redirects post-login permitidos (spokes) ---
+    # Dominios registrables (sin esquema ni ruta) que pueden recibir el hub
+    # token en la query (?token=) cuando el login de Google termina en un
+    # sitio que no es el frontend propio del hub. Un subdominio estricto de
+    # un dominio declarado también está permitido (riderdefensa.rincom.es
+    # ⇒ rincom.es). El host del FRONTEND_URL siempre está permitido.
+    # Si la variable no está declarada se usa rincom.es (deploy de rincom
+    # funciona sin tocar nada); vacío explícito = solo el frontend del hub.
+    allowed_redirect_origins: Any = Field(
+        default_factory=lambda: ["rincom.es"], alias="ALLOWED_REDIRECT_ORIGINS"
+    )
+
+    # --- Esquemas de app permitidos (APK que devuelve el login) ---
+    # URLs completas de esquema propio, p. ej. riderdefensa://auth/callback.
+    # Son las únicas que pueden recibir el hub token cuando el flujo corre en
+    # una app nativa (el navegador no maneja ese esquema ⇒ el SO abre la app).
+    # Vacío por defecto (fail closed): cada deployment declara sus apps.
+    allowed_redirect_app_urls: Any = Field(
+        default_factory=list, alias="ALLOWED_REDIRECT_APP_URLS"
+    )
+
+    @field_validator("allowed_redirect_app_urls", mode="before")
+    @classmethod
+    def assemble_allowed_redirect_app_urls(cls, v: Any) -> List[str]:
+        """Parsea la lista de URLs de app: lista, JSON o coma-separada."""
+        if not v:
+            return []
+        if isinstance(v, list):
+            return [str(item).strip() for item in v if str(item).strip()]
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    data = json.loads(v)
+                    if isinstance(data, list):
+                        return [str(i).strip() for i in data if str(i).strip()]
+                except (json.JSONDecodeError, TypeError):
+                    v = v.strip("[]")
+            return [i.strip().strip('"').strip("'") for i in v.split(",") if i.strip()]
+        return []
+
+    @field_validator("allowed_redirect_origins", mode="before")
+    @classmethod
+    def assemble_allowed_redirect_origins(cls, v: Any) -> List[str]:
+        """Parsea la lista de dominios permitidos: lista, JSON o coma-separada."""
+        if not v:
+            return []
+        if isinstance(v, list):
+            return [str(item).strip() for item in v if str(item).strip()]
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    data = json.loads(v)
+                    if isinstance(data, list):
+                        return [str(i).strip() for i in data if str(i).strip()]
+                except (json.JSONDecodeError, TypeError):
+                    v = v.strip("[]")
+            return [i.strip().strip('"').strip("'") for i in v.split(",") if i.strip()]
+        return []
+
     # --- Cloudinary (Opcionales por si los usas luego) ---
     cloudinary_cloud_name: Optional[str] = Field(None, alias="CLOUDINARY_CLOUD_NAME")
     cloudinary_api_key: Optional[str] = Field(None, alias="CLOUDINARY_API_KEY")

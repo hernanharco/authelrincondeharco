@@ -416,15 +416,185 @@ class TestGetFrontendRedirect:
         assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/settings"
 
     async def test_absolute_https_redirect_kept(self):
-        state = json.dumps({"redirect_to": "https://otro.es/pagina"})
-        assert _get_frontend_redirect(state) == "https://otro.es/pagina"
+        """URL absoluta con host permitido (spoke declarado) → se conserva."""
+        state = json.dumps(
+            {"redirect_to": "https://riderdefensa.rincom.es/auth/callback"}
+        )
+        assert (
+            _get_frontend_redirect(state)
+            == "https://riderdefensa.rincom.es/auth/callback"
+        )
 
     async def test_absolute_http_redirect_kept(self):
-        state = json.dumps({"redirect_to": "http://otro.es/pagina"})
-        assert _get_frontend_redirect(state) == "http://otro.es/pagina"
+        """http sobrevive en dev y solo con host permitido (hub en localhost)."""
+        state = json.dumps({"redirect_to": "http://localhost:5173/spoke"})
+        assert _get_frontend_redirect(state) == "http://localhost:5173/spoke"
 
     async def test_invalid_json_uses_default(self):
         assert _get_frontend_redirect("not-json") == f"{FRONTEND_URL}/dashboard"
+
+
+class TestAllowedRedirectPolicy:
+    """S3 (apk-login-deeplink): el hub token solo puede salir a dominios
+    declarados en ALLOWED_REDIRECT_ORIGINS. Un redirect_to desconocido cae
+    al login del hub y NUNCA recibe el token en la query.
+    """
+
+    async def test_allowed_spoke_subdomain_is_kept(self):
+        state = json.dumps(
+            {"redirect_to": "https://riderdefensa.rincom.es/auth/callback"}
+        )
+        assert (
+            _get_frontend_redirect(state)
+            == "https://riderdefensa.rincom.es/auth/callback"
+        )
+
+    async def test_www_spoke_is_kept(self):
+        state = json.dumps({"redirect_to": "https://www.rincom.es/ofertas"})
+        assert _get_frontend_redirect(state) == "https://www.rincom.es/ofertas"
+
+    async def test_hub_own_origin_is_kept(self):
+        state = json.dumps({"redirect_to": f"{FRONTEND_URL}/dashboard"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/dashboard"
+
+    async def test_unknown_host_is_rejected(self):
+        state = json.dumps({"redirect_to": "https://evil.example.com/robar"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_suffix_spoof_is_rejected(self):
+        """rincom.es.evil.example.com NO es un subdominio de rincom.es."""
+        state = json.dumps({"redirect_to": "https://rincom.es.evil.example.com/"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_userinfo_trick_is_rejected(self):
+        """https://dominio-bueno@evil.example.com → hostname real = evil."""
+        state = json.dumps(
+            {"redirect_to": "https://riderdefensa.rincom.es@evil.example.com/"}
+        )
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_http_scheme_is_rejected_in_production(self, monkeypatch):
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        state = json.dumps(
+            {"redirect_to": "http://riderdefensa.rincom.es/auth/callback"}
+        )
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_env_allowlist_is_used(self, monkeypatch):
+        monkeypatch.setattr(settings, "allowed_redirect_origins", ["otro.example.com"])
+        kept = json.dumps({"redirect_to": "https://sub.otro.example.com/x"})
+        assert _get_frontend_redirect(kept) == "https://sub.otro.example.com/x"
+        rejected = json.dumps({"redirect_to": "https://riderdefensa.rincom.es/x"})
+        assert _get_frontend_redirect(rejected) == f"{FRONTEND_URL}/login"
+
+    async def test_explicit_port_is_rejected_in_production(self, monkeypatch):
+        """En producción rincom.es:8443 no es rincom.es (m1 del verificador).
+        En dev se tolera (los puertos de vite/astro no son un riesgo)."""
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        state = json.dumps({"redirect_to": "https://rincom.es:8443/x"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+        monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+        dev = json.dumps({"redirect_to": "https://rincom.es:8443/x"})
+        assert _get_frontend_redirect(dev) == "https://rincom.es:8443/x"
+
+    async def test_uppercase_scheme_is_still_validated(self):
+        """HTTPS:// no se cuela por la rama "ruta relativa" (m3)."""
+        bad = json.dumps({"redirect_to": "HTTPS://evil.example.com/x"})
+        assert _get_frontend_redirect(bad) == f"{FRONTEND_URL}/login"
+        ok = json.dumps({"redirect_to": "HTTPS://www.rincom.es/ofertas"})
+        assert _get_frontend_redirect(ok) == "HTTPS://www.rincom.es/ofertas"
+
+    async def test_empty_allowlist_keeps_only_hub_host(self, monkeypatch):
+        monkeypatch.setattr(settings, "allowed_redirect_origins", [])
+        spoke = json.dumps({"redirect_to": "https://riderdefensa.rincom.es/x"})
+        assert _get_frontend_redirect(spoke) == f"{FRONTEND_URL}/login"
+        hub = json.dumps({"redirect_to": f"{FRONTEND_URL}/dashboard"})
+        assert _get_frontend_redirect(hub) == f"{FRONTEND_URL}/dashboard"
+
+    async def test_google_callback_unknown_host_gets_no_token(
+        self, client, db_session, test_user, mock_google_exchange
+    ):
+        """Integración: host no permitido en el callback → redirect al hub
+        SIN `token=` en la URL (el JWT no sale del hub)."""
+        mock_google_exchange({"email": "test@example.com", "name": "Test User"})
+        db_session.add(test_user)
+        await db_session.commit()
+
+        state = json.dumps({"redirect_to": "https://evil.example.com/robar"})
+        response = await client.get(
+            "/api/v1/auth/callback", params={"code": "test_code", "state": state}
+        )
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        location = response.headers["location"]
+        assert location.startswith(FRONTEND_URL)
+        assert "token=" not in location
+
+
+class TestAllowedAppRedirect:
+    """T6 (apk-login-deeplink): el esquema propio del APK
+    (`riderdefensa://auth/callback`) solo recibe el token si está declarado
+    en ALLOWED_REDIRECT_APP_URLS. Sin declaración = fail closed.
+    """
+
+    APP_URL = "riderdefensa://auth/callback"
+
+    async def test_declared_app_url_is_kept(self, monkeypatch):
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        state = json.dumps({"redirect_to": self.APP_URL})
+        assert _get_frontend_redirect(state) == self.APP_URL
+
+    async def test_undeclared_app_url_is_rejected(self):
+        """Default (lista vacía) → nunca se redirige a un esquema de app."""
+        state = json.dumps({"redirect_to": self.APP_URL})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_other_app_path_is_rejected(self, monkeypatch):
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        for bad in (
+            "riderdefensa://auth/otra",
+            "riderdefensa://auth/callbackx",
+            "riderdefensa://evil/callback",
+            "otraapp://auth/callback",
+        ):
+            state = json.dumps({"redirect_to": bad})
+            assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login", bad
+
+    async def test_app_url_with_query_is_kept(self, monkeypatch):
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        url = f"{self.APP_URL}?status=pending"
+        state = json.dumps({"redirect_to": url})
+        assert _get_frontend_redirect(state) == url
+
+    async def test_app_url_with_userinfo_is_rejected(self, monkeypatch):
+        """`riderdefensa://x@auth/callback` — mismo truco que en la rama web."""
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        state = json.dumps({"redirect_to": "riderdefensa://x@auth/callback"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_app_url_with_port_is_rejected(self, monkeypatch):
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        state = json.dumps({"redirect_to": "riderdefensa://auth:8080/callback"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_google_callback_app_url_carries_token(
+        self, client, db_session, test_user, mock_google_exchange, monkeypatch
+    ):
+        """Integración: con el esquema declarado, el token sale hacia la app."""
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        mock_google_exchange({"email": "test@example.com", "name": "Test User"})
+        db_session.add(test_user)
+        await db_session.commit()
+
+        state = json.dumps({"redirect_to": self.APP_URL})
+        response = await client.get(
+            "/api/v1/auth/callback", params={"code": "test_code", "state": state}
+        )
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        location = response.headers["location"]
+        assert location.startswith(f"{self.APP_URL}?token=")
 
 
 # --- FIXTURES ---
