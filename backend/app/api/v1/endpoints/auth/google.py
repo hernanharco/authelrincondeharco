@@ -72,6 +72,14 @@ def _is_allowed_redirect(url: str) -> bool:
     parsed = urlparse(url)
     if parsed.username or parsed.password:
         return False
+    # Un puerto explícito solo se tolera fuera de producción (dev usa
+    # localhost:5173 / :4321); en prod, rincom.es:8443 no es rincom.es.
+    try:
+        port = parsed.port
+    except ValueError:
+        return False
+    if settings.is_production and port not in (None, 443, 80):
+        return False
     scheme = (parsed.scheme or "").lower()
     if scheme == "https":
         pass
@@ -101,6 +109,15 @@ def _is_allowed_app_redirect(url: str) -> bool:
     parsed = urlparse(url)
     scheme = (parsed.scheme or "").lower()
     if not scheme or scheme in ("http", "https"):
+        return False
+    # Mismo criterio que la rama web: ni userinfo (`riderdefensa://x@auth/…`)
+    # ni puertos fuera del default.
+    if parsed.username or parsed.password:
+        return False
+    try:
+        if parsed.port is not None:
+            return False
+    except ValueError:
         return False
     host = (parsed.hostname or "").lower()
     path = parsed.path or ""
@@ -134,9 +151,6 @@ def _get_frontend_redirect(state: str = "") -> str:
             return default
         scheme = (urlparse(redirect_to).scheme or "").lower()
         if scheme and scheme not in ("http", "https"):
-            # Esquema de app: solo si está declarado (se devuelve tal cual, con
-            # su query). Si no, NUNCA se redirige ahí — y tampoco se trata como
-            # ruta relativa (sería pegar el esquema a FRONTEND_URL).
             if _is_allowed_app_redirect(redirect_to):
                 return redirect_to
             logging.warning(
@@ -144,8 +158,10 @@ def _get_frontend_redirect(state: str = "") -> str:
                 redirect_to,
             )
             return f"{FRONTEND_URL}/login"
-        # Si ya es URL completa, usarla directamente
-        if redirect_to.startswith("http://") or redirect_to.startswith("https://"):
+        # URL absoluta http(s): se valida contra la allowlist y se usa directa.
+        # El esquema se compara en minúsculas (urlparse ya lo normaliza), así
+        # que `HTTPS://…` no se cuela por la rama "relativa".
+        if scheme in ("http", "https"):
             if _is_allowed_redirect(redirect_to):
                 return redirect_to
             logging.warning(

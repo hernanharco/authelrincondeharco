@@ -487,6 +487,31 @@ class TestAllowedRedirectPolicy:
         rejected = json.dumps({"redirect_to": "https://riderdefensa.rincom.es/x"})
         assert _get_frontend_redirect(rejected) == f"{FRONTEND_URL}/login"
 
+    async def test_explicit_port_is_rejected_in_production(self, monkeypatch):
+        """En producción rincom.es:8443 no es rincom.es (m1 del verificador).
+        En dev se tolera (los puertos de vite/astro no son un riesgo)."""
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        state = json.dumps({"redirect_to": "https://rincom.es:8443/x"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+        monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+        dev = json.dumps({"redirect_to": "https://rincom.es:8443/x"})
+        assert _get_frontend_redirect(dev) == "https://rincom.es:8443/x"
+
+    async def test_uppercase_scheme_is_still_validated(self):
+        """HTTPS:// no se cuela por la rama "ruta relativa" (m3)."""
+        bad = json.dumps({"redirect_to": "HTTPS://evil.example.com/x"})
+        assert _get_frontend_redirect(bad) == f"{FRONTEND_URL}/login"
+        ok = json.dumps({"redirect_to": "HTTPS://www.rincom.es/ofertas"})
+        assert _get_frontend_redirect(ok) == "HTTPS://www.rincom.es/ofertas"
+
+    async def test_empty_allowlist_keeps_only_hub_host(self, monkeypatch):
+        monkeypatch.setattr(settings, "allowed_redirect_origins", [])
+        spoke = json.dumps({"redirect_to": "https://riderdefensa.rincom.es/x"})
+        assert _get_frontend_redirect(spoke) == f"{FRONTEND_URL}/login"
+        hub = json.dumps({"redirect_to": f"{FRONTEND_URL}/dashboard"})
+        assert _get_frontend_redirect(hub) == f"{FRONTEND_URL}/dashboard"
+
     async def test_google_callback_unknown_host_gets_no_token(
         self, client, db_session, test_user, mock_google_exchange
     ):
@@ -541,6 +566,17 @@ class TestAllowedAppRedirect:
         url = f"{self.APP_URL}?status=pending"
         state = json.dumps({"redirect_to": url})
         assert _get_frontend_redirect(state) == url
+
+    async def test_app_url_with_userinfo_is_rejected(self, monkeypatch):
+        """`riderdefensa://x@auth/callback` — mismo truco que en la rama web."""
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        state = json.dumps({"redirect_to": "riderdefensa://x@auth/callback"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_app_url_with_port_is_rejected(self, monkeypatch):
+        monkeypatch.setattr(settings, "allowed_redirect_app_urls", [self.APP_URL])
+        state = json.dumps({"redirect_to": "riderdefensa://auth:8080/callback"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
 
     async def test_google_callback_app_url_carries_token(
         self, client, db_session, test_user, mock_google_exchange, monkeypatch
