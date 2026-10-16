@@ -94,6 +94,11 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-https://authcore.vercel.app}
       BACKEND_URL: ${BACKEND_URL:-https://api-authcore.elrincondeharco.com}
+      # Redirects post-login permitidos (spokes): dominios registrables que
+      # pueden recibir el hub token en ?token=. Subdominios incluidos.
+      # Deployment que use otro dominio DEBE declararlo acá; vacío = solo el
+      # frontend del hub (sin spokes).
+      ALLOWED_REDIRECT_ORIGINS: ${ALLOWED_REDIRECT_ORIGINS:-rincom.es}
 
       # Cloudinary (opcional)
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}

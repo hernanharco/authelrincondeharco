@@ -80,7 +80,24 @@ GOOGLE_CLIENT_SECRET=tu-google-client-secret
 # App
 APP_DOMAIN=tu-dominio.com
 TITLE_BACKEND=AuthCore Backend
+
+# Redirects post-login permitidos (spokes que reciben ?token=)
+# Dominios registrables, sin esquema ni ruta; los subdominios quedan
+# incluidos (rincom.es ⇒ riderdefensa.rincom.es, www.rincom.es).
+# Default: rincom.es. Vacío explícito = solo el frontend del hub.
+ALLOWED_REDIRECT_ORIGINS=rincom.es
 ```
+
+#### Seguridad del redirect post-login
+
+Al terminar el login de Google, authCore redirige al `redirect_to` que el
+spoke envió y le apende el hub JWT en `?token=`. Sin allowlist eso era un
+**open redirect que filtraba el token** a cualquier dominio. Hoy el destino
+absoluto solo se acepta si su host está declarado en
+`ALLOWED_REDIRECT_ORIGINS` (o es el host del `FRONTEND_URL`) y el esquema es
+`https` en producción; si no, el usuario cae en el login del hub **sin**
+token. Un deployment con spokes propios debe declararlos en esa variable.
+
 
 ## Comandos Disponibles
 

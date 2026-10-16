@@ -1,6 +1,7 @@
 # app/api/v1/endpoints/auth/google.py
 import json
 import logging
+from typing import List
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -37,11 +38,61 @@ async def google_login(redirect_to: str = "/dashboard"):
     return RedirectResponse(url=auth_url)
 
 
+def _host_matches(host: str, allowed_domain: str) -> bool:
+    """True si `host` es el propio dominio declarado o un subdominio estricto.
+
+    `rincom.es.evil.com` NO matchea `rincom.es` (el sufijo no engaña).
+    """
+    clean_host = host.lower().rstrip(".")
+    allowed = allowed_domain.lower().strip().rstrip(".")
+    if allowed.startswith("*."):
+        allowed = allowed[2:]
+    if not allowed:
+        return False
+    return clean_host == allowed or clean_host.endswith(f".{allowed}")
+
+
+def _allowed_redirect_hosts() -> List[str]:
+    """Dominios que pueden recibir el hub token: los declarados en
+    ALLOWED_REDIRECT_ORIGINS + el host del frontend propio del hub.
+    """
+    hosts = [str(h) for h in (settings.allowed_redirect_origins or [])]
+    hub_host = (urlparse(FRONTEND_URL).hostname or "").lower()
+    if hub_host:
+        hosts.append(hub_host)
+    return hosts
+
+
+def _is_allowed_redirect(url: str) -> bool:
+    """S3 (apk-login-deeplink): el token solo sale hacia un host permitido.
+
+    - https obligatorio en producción (http queda para dev local).
+    - `https://bueno@evil.com` no engaña: se valida el hostname real.
+    """
+    parsed = urlparse(url)
+    if parsed.username or parsed.password:
+        return False
+    scheme = (parsed.scheme or "").lower()
+    if scheme == "https":
+        pass
+    elif scheme == "http":
+        if settings.is_production:
+            return False
+    else:
+        return False
+    host = parsed.hostname
+    if not host:
+        return False
+    return any(_host_matches(host, allowed) for allowed in _allowed_redirect_hosts())
+
+
 def _get_frontend_redirect(state: str = "") -> str:
     """
     Extrae el redirect_to del state de OAuth.
     redirect_to puede ser URL completa (http://...) o ruta relativa (/dashboard).
-    Si es completa, se usa directamente. Si es relativa, se antepone FRONTEND_URL.
+    Si es completa, se usa directamente SOLO si su host está permitido
+    (_is_allowed_redirect); si no, se cae al login del hub: el hub JWT nunca
+    sale hacia un dominio no declarado. Si es relativa, se antepone FRONTEND_URL.
     """
     default = f"{FRONTEND_URL}/dashboard"
     if not state:
@@ -53,7 +104,12 @@ def _get_frontend_redirect(state: str = "") -> str:
             return default
         # Si ya es URL completa, usarla directamente
         if redirect_to.startswith("http://") or redirect_to.startswith("https://"):
-            return redirect_to
+            if _is_allowed_redirect(redirect_to):
+                return redirect_to
+            logging.warning(
+                "⛔ redirect_to rechazado (host no permitido): %s", redirect_to
+            )
+            return f"{FRONTEND_URL}/login"
         # Si es ruta relativa, anteponer FRONTEND_URL
         return f"{FRONTEND_URL}{redirect_to}"
     except (json.JSONDecodeError, TypeError):
