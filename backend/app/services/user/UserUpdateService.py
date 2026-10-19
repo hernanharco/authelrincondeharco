@@ -9,6 +9,7 @@ from app.models.user import User
 from app.types.enums import UserRole, UserStatus
 from app.core.security import get_password_hash
 from app.interfaces.user.IUserRepository import IUserRepository
+from app.services.membership.MembershipService import MembershipService
 from app.services.user.UserValidationService import UserValidationService
 
 
@@ -93,7 +94,15 @@ class UserUpdateService:
             "is_active": new_status == UserStatus.ACTIVE,
         }
 
-        return await self.user_repository.update(user_id, update_data)
+        updated = await self.user_repository.update(user_id, update_data)
+
+        # Aprobación (S1): al activar, vincular al tenant de su origin.
+        # Si origin no matchea ningún tenant, no falla (S5): queda para
+        # asignación manual.
+        if new_status == UserStatus.ACTIVE and updated is not None:
+            await MembershipService(self.db).assign_by_origin(updated)
+
+        return updated
 
     async def update_user_lock(
         self, user_id: int, is_locked: bool, current_user: User
