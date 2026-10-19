@@ -94,3 +94,10 @@ reportada por el dueño y añade asignación manual como respaldo. Rama: `feat/a
   (317 y 250 líneas) que viajan con la unidad que verifican — el presupuesto
   prohíbe recortar tests para caber; una pasada de slicing ya hecha no
   encontró split cohesivo mejor.
+- **L10** — backfill de PROD ejecutado (19/10/2026, vía hetzner-wg →
+  authcore-postgres-1): preview mostró exactamente 1 fila
+  (`elianadeseguros` origin `riderdefensa`); `INSERT 0 1`; membresía
+  `riderdefensa/USER` verificada; re-corrida → `INSERT 0 0` (idempotente).
+  Auditoría SUPERADMIN en prod: **1 fila, hernan.harco** (S4 cumplido).
+  Pendiente manual: `elinanelinan1988` (origin `google`, sin tenant) —
+  asignar desde el panel cuando PR #23 esté en prod.
