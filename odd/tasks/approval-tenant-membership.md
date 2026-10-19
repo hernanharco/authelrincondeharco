@@ -86,3 +86,11 @@ reportada por el dueño y añade asignación manual como respaldo. Rama: `feat/a
   (a) slug único case-sensitive → `MultipleResultsFound` teórico si existieran
   dos slugs que difieran solo en mayúsculas (despreciable); (b) fallos de
   membresía en bulk solo visibles en stdout (patrón preexistente).
+- **L9** — entrega: el usuario pidió push + PRs encadenados. Estrategia
+  `stacked-to-main` (política del repo en AGENTS.md: PRs stacked revisados y
+  mergeados en orden). 6 tandas: (1) auto-asignación al aprobar 380;
+  (2) bulk+rol 137; (3) backfill 84; (4) endpoints manuales 461; (5) UI 543;
+  (6) auditoría+docs 74. Las tandas 4 y 5 exceden 400 solo por sus tests
+  (317 y 250 líneas) que viajan con la unidad que verifican — el presupuesto
+  prohíbe recortar tests para caber; una pasada de slicing ya hecha no
+  encontró split cohesivo mejor.
