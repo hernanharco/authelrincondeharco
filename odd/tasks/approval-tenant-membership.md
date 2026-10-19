@@ -40,9 +40,9 @@ reportada por el dueño y añade asignación manual como respaldo. Rama: `feat/a
       Commit `feat(api): manual user-tenant membership endpoints`.
 - [ ] **T5** — S3, pantalla de asignación manual en el panel de AuthCore.
       Commit `feat(web): manual tenant membership assignment UI`.
-- [ ] **T6** — S4, auditoría en prod (query) + constatación de guards; resultado
+- [x] **T6** — S4, auditoría en prod (query) + constatación de guards; resultado
       en Log. Commit (docs/evidencia).
-- [ ] **T7** — Cierre: suite completa, `gentle-ai-verify` (riesgo item 2),
+- [x] **T7** — Cierre: suite completa, `gentle-ai-verify` (riesgo item 2),
       review nativo si `reviewDue`. Evidencia en Log.
 
 ## Log
@@ -59,3 +59,45 @@ reportada por el dueño y añade asignación manual como respaldo. Rama: `feat/a
   (solo se lee desde `/users/me/tenants`, `/select-tenant`, `/tenants/usage`,
   `/tenants/{id}/users`). `origin` se deriva del host del `redirect_to`
   (google.py callback) y es solo una etiqueta, no una membresía.
+- **L5** — S4 auditado: en prod, la captura del panel del dueño muestra
+  `SUPERADMIN 1` (su cuenta). En dev: 2 — `hernan.harco` (dueño) + `dev_admin`
+  (creado por `/auth/dev-login`, responde 403 en producción — test
+  `test_dev_login_disabled_in_production` ya existente). Guards constatados:
+  `UserDomain.can_assign_role` solo permite SUPERADMIN→SUPERADMIN/ADMIN
+  (`test_domain.py`); regresión nueva `test_approval_never_changes_global_role`
+  (aprobar nunca toca el rol global). Re-auditoría: `scripts/superadmin-audit.sql`.
+- **L6** — cierre verificado: backend **312 passed** con gate coverage 80
+  (contenedor dev, árbol sincronizado con `docker cp backend/tests/`); frontend
+  **130 passed** + coverage (thresholds 80) y `astro build` OK. ASSESS nativo
+  (RDD on, workspace authCore, rango main..HEAD): **risk medium**, 15 paths / 1653
+  líneas, **reviewDue=false** (`under_budget`) → no se inicia review nativo (regla
+  de entrada: solo con reviewDue o petición explícita). Perfil writer: large (runtime).
+- **L7** — Risk: item 2 (la feature crea membresías que conceden acceso a datos
+  de un tenant — permisos). Mitigación verificada: match exacto origin↔slug,
+  rol de membresía acotado a Literal (SUPERADMIN rechazado), guard admin+ en
+  ambos endpoints, `test_approval_never_changes_global_role`.
+- **L8** — `gentle-ai-verify` (independiente, read-only): **PASS**. Guards admin+
+  en ambos endpoints; Literal rechaza SUPERADMIN; sin camino que toque
+  `users.role`; `tenant_id` solo desde la URL (sin escape entre tenants); match
+  exacto sin LIKE; idempotencia por check + `uq_user_tenant`; el bulk no se
+  rompe ante fallo de membresía (try per-user preexistente); sin regresiones de
+  contrato; token solo en header Authorization. Suites re-ejecutadas: backend
+  **312 passed**, frontend **130 passed**. Advisories (no bloqueantes):
+  (a) slug único case-sensitive → `MultipleResultsFound` teórico si existieran
+  dos slugs que difieran solo en mayúsculas (despreciable); (b) fallos de
+  membresía en bulk solo visibles en stdout (patrón preexistente).
+- **L9** — entrega: el usuario pidió push + PRs encadenados. Estrategia
+  `stacked-to-main` (política del repo en AGENTS.md: PRs stacked revisados y
+  mergeados en orden). 6 tandas: (1) auto-asignación al aprobar 380;
+  (2) bulk+rol 137; (3) backfill 84; (4) endpoints manuales 461; (5) UI 543;
+  (6) auditoría+docs 74. Las tandas 4 y 5 exceden 400 solo por sus tests
+  (317 y 250 líneas) que viajan con la unidad que verifican — el presupuesto
+  prohíbe recortar tests para caber; una pasada de slicing ya hecha no
+  encontró split cohesivo mejor.
+- **L10** — backfill de PROD ejecutado (19/10/2026, vía hetzner-wg →
+  authcore-postgres-1): preview mostró exactamente 1 fila
+  (`elianadeseguros` origin `riderdefensa`); `INSERT 0 1`; membresía
+  `riderdefensa/USER` verificada; re-corrida → `INSERT 0 0` (idempotente).
+  Auditoría SUPERADMIN en prod: **1 fila, hernan.harco** (S4 cumplido).
+  Pendiente manual: `elinanelinan1988` (origin `google`, sin tenant) —
+  asignar desde el panel cuando PR #23 esté en prod.
