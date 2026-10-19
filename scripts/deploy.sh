@@ -30,7 +30,7 @@ NC='\033[0m'
 HETZNER_SSH="hetzner-wg"
 HETZNER_PATH="/opt/authcore"
 VERCEL_PROJECT="authcore"
-GIT_BRANCH="dev"              # Rama a deployar (cambiar a main cuando esté estable)
+GIT_BRANCH="main"             # Rama a deployar (alineado con el CI: backend-deploy.yml despliega main)
 # ═════════════════════════════════════════════════════════════════
 
 echo ""
