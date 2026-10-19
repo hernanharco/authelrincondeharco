@@ -13,6 +13,7 @@ from app.interfaces.user.IUserRepository import IUserRepository
 from app.services.user.UserValidationService import UserValidationService
 from app.services.user.UserQueryService import UserQueryService
 from app.services.user.UserUpdateService import UserUpdateService
+from app.services.membership.MembershipService import MembershipService
 
 
 class UserService(IUserService):
@@ -22,14 +23,21 @@ class UserService(IUserService):
     Patrón Facade: proporciona una interfaz unificada para el subsistema de usuarios.
     """
 
-    def __init__(self, db: AsyncSession, user_repository: IUserRepository):
+    def __init__(
+        self,
+        db: AsyncSession,
+        user_repository: IUserRepository,
+        membership_service: Optional[MembershipService] = None,
+    ):
         self.db = db
         self.user_repository = user_repository
 
         # Inicializar servicios especializados
         self.validation_service = UserValidationService()
         self.query_service = UserQueryService(db, user_repository)
-        self.update_service = UserUpdateService(db, user_repository)
+        self.update_service = UserUpdateService(
+            db, user_repository, membership_service
+        )
 
     async def get_user_by_id(self, user_id: int, current_user: User) -> Optional[User]:
         """

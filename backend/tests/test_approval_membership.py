@@ -178,6 +178,91 @@ class TestApprovalCreatesMembership:
         assert [m.tenant.slug for m in memberships] == ["riderdefensa"]
 
 
+# ── S1: otros caminos que activan la cuenta (T2) ───────────────
+
+
+class TestOtherActivationPaths:
+    async def test_bulk_update_active_creates_membership(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        """PATCH /users/bulk-update con status ACTIVE también vincula (S1)."""
+        admin = await seed_user(
+            db_session, username="admin", email="admin@example.com",
+            role=UserRole.ADMIN, status=UserStatus.ACTIVE, is_active=True,
+        )
+        await seed_tenant(db_session, slug="riderdefensa")
+        t1 = await seed_user(db_session, origin="riderdefensa")
+        t2 = await seed_user(db_session, origin="riderdefensa")
+
+        response = await client.patch(
+            "/api/v1/users/bulk-update",
+            json={
+                "user_ids": [t1.id, t2.id],
+                "update_data": {"status": UserStatus.ACTIVE.value},
+            },
+            headers=auth_headers(admin),
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        # Regresión: el contrato previo del bulk sigue igual (lista actualizada)
+        assert len(response.json()) == 2
+        for target in (t1, t2):
+            memberships = await memberships_of(db_session, target)
+            assert len(memberships) == 1
+            assert memberships[0].tenant.slug == "riderdefensa"
+            assert memberships[0].role == "USER"
+
+    async def test_bulk_update_other_status_creates_nothing(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        """Bulk con status distinto de ACTIVE no crea membresías."""
+        admin = await seed_user(
+            db_session, username="admin", email="admin@example.com",
+            role=UserRole.ADMIN, status=UserStatus.ACTIVE, is_active=True,
+        )
+        await seed_tenant(db_session, slug="riderdefensa")
+        target = await seed_user(
+            db_session, origin="riderdefensa",
+            status=UserStatus.ACTIVE, is_active=True,
+        )
+
+        response = await client.patch(
+            "/api/v1/users/bulk-update",
+            json={
+                "user_ids": [target.id],
+                "update_data": {"status": UserStatus.SUSPENDED.value},
+            },
+            headers=auth_headers(admin),
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert await memberships_of(db_session, target) == []
+
+    async def test_role_assignment_that_activates_creates_membership(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        """PATCH /users/{id}/role con rol válido auto-activa Y vincula (S1)."""
+        admin = await seed_user(
+            db_session, username="admin", email="admin@example.com",
+            role=UserRole.ADMIN, status=UserStatus.ACTIVE, is_active=True,
+        )
+        await seed_tenant(db_session, slug="riderdefensa")
+        target = await seed_user(db_session, origin="riderdefensa")
+
+        response = await client.patch(
+            f"/api/v1/users/{target.id}/role",
+            json={"role": UserRole.USER.value},
+            headers=auth_headers(admin),
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        # Regresión: asignar rol sigue activando la cuenta (contrato previo)
+        assert response.json()["status"] == UserStatus.ACTIVE.value
+        memberships = await memberships_of(db_session, target)
+        assert len(memberships) == 1
+        assert memberships[0].tenant.slug == "riderdefensa"
+
+
 # ── S5: origin sin tenant → sin membresía, sin error ─────────────
 
 

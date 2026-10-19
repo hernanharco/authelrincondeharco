@@ -2,7 +2,7 @@
 Servicio de Actualización de Usuarios - Principio de Responsabilidad Única
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
@@ -19,9 +19,17 @@ class UserUpdateService:
     SRP: Única responsabilidad = modificar datos de usuarios.
     """
 
-    def __init__(self, db: AsyncSession, user_repository: IUserRepository):
+    def __init__(
+        self,
+        db: AsyncSession,
+        user_repository: IUserRepository,
+        membership_service: Optional[MembershipService] = None,
+    ):
         self.db = db
         self.user_repository = user_repository
+        # Inyectable para tests unitarios sin BD (la suite de servicios
+        # mockea db con AsyncMock); por defecto el real sobre la sesión.
+        self.membership_service = membership_service or MembershipService(db)
 
     async def update_user(
         self, user_id: int, update_data: Dict[str, Any], current_user: User
@@ -73,7 +81,14 @@ class UserUpdateService:
         if new_role != UserRole.NONE:
             update_data.update({"status": UserStatus.ACTIVE, "is_active": True})
 
-        return await self.user_repository.update(user_id, update_data)
+        updated = await self.user_repository.update(user_id, update_data)
+
+        # Mismo criterio que update_user_status (S1): al activar, vincular
+        # al tenant de su origin.
+        if new_role != UserRole.NONE and updated is not None:
+            await self.membership_service.assign_by_origin(updated)
+
+        return updated
 
     async def update_user_status(
         self, user_id: int, new_status: UserStatus, current_user: User
@@ -100,7 +115,7 @@ class UserUpdateService:
         # Si origin no matchea ningún tenant, no falla (S5): queda para
         # asignación manual.
         if new_status == UserStatus.ACTIVE and updated is not None:
-            await MembershipService(self.db).assign_by_origin(updated)
+            await self.membership_service.assign_by_origin(updated)
 
         return updated
 
@@ -208,6 +223,15 @@ class UserUpdateService:
                         user_id, update_data
                     )
                     updated_users.append(updated_user)
+                    # Criterio de aprobación unificado (S1): si el bulk
+                    # activa la cuenta, vincular al tenant de su origin.
+                    if (
+                        update_data.get("status") == UserStatus.ACTIVE
+                        and updated_user is not None
+                    ):
+                        await self.membership_service.assign_by_origin(
+                            updated_user
+                        )
             except Exception as e:
                 # Log error pero continuar con otros usuarios
                 print(f"Error updating user {user_id}: {e}")

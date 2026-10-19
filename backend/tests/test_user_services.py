@@ -49,7 +49,13 @@ def user_repository():
 @pytest.fixture
 def user_service(user_repository):
     # db no se usa: con el repo mockeado ninguna ruta toca la sesión.
-    return UserService(db=AsyncMock(), user_repository=user_repository)
+    # membership_service mockeado: la auto-vinculación al aprobar (S1) tiene
+    # sus propios tests con BD real en test_approval_membership.py.
+    return UserService(
+        db=AsyncMock(),
+        user_repository=user_repository,
+        membership_service=AsyncMock(),
+    )
 
 
 @pytest.fixture
