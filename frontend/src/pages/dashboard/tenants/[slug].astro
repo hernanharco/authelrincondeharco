@@ -2,10 +2,7 @@
 export const prerender = false;
 import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 import { apiUrl, ENDPOINTS } from '../../../config/api.config';
-import { formatDate } from '../../../utils/date';
-import UserAvatar from '../../../components/dashboard/UserAvatar.svelte';
-import RoleBadge from '../../../components/dashboard/RoleBadge.svelte';
-import StatusBadge from '../../../components/dashboard/StatusBadge.svelte';
+import TenantMembers from '../../../components/dashboard/TenantMembers.svelte';
 
 const token = Astro.cookies.get('access_token')?.value;
 if (!token) {
@@ -21,6 +18,7 @@ let tenant: any = null;
 let tenantModules: any[] = [];
 let allModules: any[] = [];
 let tenantMembers: any[] | null = null;
+let panelUsers: any[] = [];
 let error = '';
 
 try {
@@ -36,7 +34,7 @@ try {
 		tenant = await tenantRes.json();
 
 		// 2. Obtener módulos asignados al tenant
-		const [assignedRes, allRes, membersRes] = await Promise.all([
+		const [assignedRes, allRes, membersRes, usersRes] = await Promise.all([
 			fetch(apiUrl(ENDPOINTS.tenants.modules(tenant.id)), {
 				headers: { Authorization: `Bearer ${token}` },
 			}),
@@ -46,12 +44,17 @@ try {
 			fetch(apiUrl(ENDPOINTS.tenants.users(tenant.id)), {
 				headers: { Authorization: `Bearer ${token}` },
 			}),
+			// Usuarios del panel: fuente del selector de alta de miembros (S3)
+			fetch(apiUrl(ENDPOINTS.users.list), {
+				headers: { Authorization: `Bearer ${token}` },
+			}),
 		]);
 
 		if (assignedRes.ok) tenantModules = await assignedRes.json();
 		if (allRes.ok) allModules = await allRes.json();
 		// Si falla (403/500), tenantMembers queda null y la card no se renderiza
 		if (membersRes.ok) tenantMembers = await membersRes.json();
+		if (usersRes.ok) panelUsers = await usersRes.json();
 	}
 } catch (e) {
 	error = 'Error al cargar datos del tenant';
@@ -159,53 +162,15 @@ const unassignedModules = allModules.filter((m: any) => !assignedIds.has(m.id));
 						)}
 					</div>
 
-					{/* Miembros del tenant */}
+					{/* Miembros del tenant — isla con asignación manual (S3) */}
 					{tenantMembers && (
-						<div class="bg-[#1E2130] border border-[#2D3148] rounded-lg p-6">
-							<h3 class="text-lg font-semibold text-[#F9FAFB] mb-4">Miembros</h3>
-							{tenantMembers.length > 0 ? (
-								<div class="overflow-x-auto">
-									<table class="w-full">
-										<thead>
-											<tr class="border-b border-[#2D3148]">
-												<th class="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Usuario</th>
-												<th class="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Rol</th>
-												<th class="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Estado</th>
-												<th class="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Logins</th>
-												<th class="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Último acceso</th>
-											</tr>
-										</thead>
-										<tbody>
-											{tenantMembers.map((m: any) => (
-												<tr class="border-b border-[#2D3148] hover:bg-[#2D3148]/40 transition-colors">
-													<td class="py-3 px-4">
-														<div class="flex items-center gap-3">
-															<UserAvatar name={m.username} size="sm" class="shrink-0" />
-															<div class="min-w-0">
-																<div class="truncate text-sm font-medium text-[#F9FAFB]">{m.username}</div>
-																<div class="truncate text-xs text-[#9CA3AF]">{m.email}</div>
-															</div>
-														</div>
-													</td>
-													<td class="py-3 px-4">
-														<RoleBadge role={String(m.role_tenant ?? '').trim().toUpperCase()} />
-													</td>
-													<td class="py-3 px-4">
-														<StatusBadge status={String(m.status ?? '').trim().toUpperCase()} />
-													</td>
-													<td class="py-3 px-4 text-sm font-semibold tabular-nums text-[#F9FAFB]">{m.login_count}</td>
-													<td class="py-3 px-4 text-sm text-[#9CA3AF] tabular-nums">
-														{m.last_login ? formatDate(m.last_login) : '—'}
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-								</div>
-							) : (
-								<p class="text-center text-sm text-[#6B7280] py-8">Este tenant aún no tiene miembros</p>
-							)}
-						</div>
+						<TenantMembers
+							tenantId={tenant.id}
+							token={token}
+							members={tenantMembers}
+							allUsers={panelUsers}
+							client:load
+						/>
 					)}
 
 					{/* Info del tenant */}
