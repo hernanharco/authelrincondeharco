@@ -177,6 +177,25 @@ class TestApprovalCreatesMembership:
         memberships = await memberships_of(db_session, target)
         assert [m.tenant.slug for m in memberships] == ["riderdefensa"]
 
+    async def test_approval_never_changes_global_role(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        """Regresión/S4: aprobar solo cambia status+is_active — el rol
+        global queda intacto (nunca puede devenir SUPERADMIN por aprobar)."""
+        admin = await seed_user(
+            db_session, username="admin", email="admin@example.com",
+            role=UserRole.ADMIN, status=UserStatus.ACTIVE, is_active=True,
+        )
+        target = await seed_user(db_session, origin="riderdefensa")
+        assert target.role == UserRole.NONE
+
+        response = await approve(client, admin, target)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["role"] == UserRole.NONE.value
+        await db_session.refresh(target)
+        assert target.role == UserRole.NONE
+
 
 # ── S1: otros caminos que activan la cuenta (T2) ───────────────
 

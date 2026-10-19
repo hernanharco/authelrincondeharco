@@ -40,7 +40,7 @@ reportada por el dueño y añade asignación manual como respaldo. Rama: `feat/a
       Commit `feat(api): manual user-tenant membership endpoints`.
 - [ ] **T5** — S3, pantalla de asignación manual en el panel de AuthCore.
       Commit `feat(web): manual tenant membership assignment UI`.
-- [ ] **T6** — S4, auditoría en prod (query) + constatación de guards; resultado
+- [x] **T6** — S4, auditoría en prod (query) + constatación de guards; resultado
       en Log. Commit (docs/evidencia).
 - [ ] **T7** — Cierre: suite completa, `gentle-ai-verify` (riesgo item 2),
       review nativo si `reviewDue`. Evidencia en Log.
@@ -59,3 +59,10 @@ reportada por el dueño y añade asignación manual como respaldo. Rama: `feat/a
   (solo se lee desde `/users/me/tenants`, `/select-tenant`, `/tenants/usage`,
   `/tenants/{id}/users`). `origin` se deriva del host del `redirect_to`
   (google.py callback) y es solo una etiqueta, no una membresía.
+- **L5** — S4 auditado: en prod, la captura del panel del dueño muestra
+  `SUPERADMIN 1` (su cuenta). En dev: 2 — `hernan.harco` (dueño) + `dev_admin`
+  (creado por `/auth/dev-login`, responde 403 en producción — test
+  `test_dev_login_disabled_in_production` ya existente). Guards constatados:
+  `UserDomain.can_assign_role` solo permite SUPERADMIN→SUPERADMIN/ADMIN
+  (`test_domain.py`); regresión nueva `test_approval_never_changes_global_role`
+  (aprobar nunca toca el rol global). Re-auditoría: `scripts/superadmin-audit.sql`.
