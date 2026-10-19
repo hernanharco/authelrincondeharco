@@ -12,9 +12,12 @@ from app.schemas.tenant import (
     TenantUpdate,
     TenantUsageResponse,
     TenantMemberResponse,
+    TenantMemberAdd,
 )
+from app.schemas.user_tenant import UserTenantResponse
 from app.services.tenant.TenantService import TenantService
-from app.api.v1.dependencies import get_tenant_service
+from app.services.membership.MembershipService import MembershipService
+from app.api.v1.dependencies import get_tenant_service, get_membership_service
 from app.core.security import get_current_admin_user
 
 router = APIRouter()
@@ -58,6 +61,33 @@ async def list_tenant_users(
     `role_tenant` viene de `user_tenants`, no del rol global del usuario.
     """
     return await tenant_service.get_tenant_users(tenant_id)
+
+
+@router.post("/{tenant_id}/users", response_model=UserTenantResponse)
+async def add_tenant_member(
+    tenant_id: str,
+    data: TenantMemberAdd,
+    membership_service: MembershipService = Depends(get_membership_service),
+    _current_user: User = Depends(get_current_admin_user),
+):
+    """Alta manual de membresía usuario↔tenant (idempotente). Requiere ADMIN.
+
+    Respaldo del vínculo automático por origin (approval-tenant-membership S3).
+    """
+    return await membership_service.add_member(
+        tenant_id=tenant_id, user_id=data.user_id, role=data.role
+    )
+
+
+@router.delete("/{tenant_id}/users/{user_id}", response_model=UserTenantResponse)
+async def remove_tenant_member(
+    tenant_id: str,
+    user_id: int,
+    membership_service: MembershipService = Depends(get_membership_service),
+    _current_user: User = Depends(get_current_admin_user),
+):
+    """Baja de membresía: solo quita la relación, no borra el usuario. Requiere ADMIN."""
+    return await membership_service.remove_member(tenant_id=tenant_id, user_id=user_id)
 
 
 @router.get("/{tenant_id}", response_model=TenantResponse)

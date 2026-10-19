@@ -3,8 +3,12 @@ Schemas Pydantic para Tenant.
 Separación: Response (lo que el API devuelve) / Create / Update (lo que recibe).
 """
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
+
+# Roles válidos de una membresía en user_tenants (modelo UserTenant.role):
+# el rol SUPERADMIN no existe a nivel de tenant — solo a nivel global.
+MembershipRole = Literal["ADMIN", "MANAGER", "USER", "VIEWER"]
 
 
 # --- RESPUESTAS ---
@@ -64,6 +68,17 @@ class TenantMemberResponse(BaseModel):
 
 
 # --- ENTRADAS ---
+
+
+class TenantMemberAdd(BaseModel):
+    """Alta manual de membresía (POST /tenants/{tenant_id}/users).
+
+    `user_id` es el id entero de users; `role` solo admite roles de
+    membresía (Literal rechaza SUPERADMIN con 422).
+    """
+
+    user_id: int
+    role: MembershipRole = "USER"
 
 
 class TenantCreate(BaseModel):
