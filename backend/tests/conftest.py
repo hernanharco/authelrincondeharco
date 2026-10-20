@@ -84,6 +84,20 @@ async def db():
 
 
 @pytest.fixture(autouse=True)
+def disable_real_email(monkeypatch):
+    """Los tests jamás envían correos reales a Resend.
+
+    Con RESEND_API_KEY presente el EmailService haría POST a api.resend.com
+    durante cualquier test que active usuarios (p. ej. la suite de membresías).
+    Sin la clave omite el envío con warning. Los tests de approval-email lo
+    re-habilitan con su propio monkeypatch (tras este autouse).
+    """
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "resend_api_key", None)
+
+
+@pytest.fixture(autouse=True)
 def disable_rate_limiter():
     """Desactiva slowapi durante cada test.
 

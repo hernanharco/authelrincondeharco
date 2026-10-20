@@ -3,6 +3,8 @@ Servicio de Actualización de Usuarios - Principio de Responsabilidad Única
 """
 
 from typing import Dict, Any, Optional
+import logging
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
@@ -11,6 +13,9 @@ from app.core.security import get_password_hash
 from app.interfaces.user.IUserRepository import IUserRepository
 from app.services.membership.MembershipService import MembershipService
 from app.services.user.UserValidationService import UserValidationService
+from app.services.email.EmailService import EmailService
+
+logger = logging.getLogger(__name__)
 
 
 class UserUpdateService:
@@ -24,12 +29,14 @@ class UserUpdateService:
         db: AsyncSession,
         user_repository: IUserRepository,
         membership_service: Optional[MembershipService] = None,
+        email_service: Optional[EmailService] = None,
     ):
         self.db = db
         self.user_repository = user_repository
         # Inyectable para tests unitarios sin BD (la suite de servicios
         # mockea db con AsyncMock); por defecto el real sobre la sesión.
         self.membership_service = membership_service or MembershipService(db)
+        self.email_service = email_service or EmailService(db)
 
     async def update_user(
         self, user_id: int, update_data: Dict[str, Any], current_user: User
@@ -103,6 +110,8 @@ class UserUpdateService:
             current_user, "cambiar el estado de usuarios"
         )
 
+        previous_status = user.status
+
         # Actualiza ambos campos: status y is_active
         update_data = {
             "status": new_status,
@@ -116,6 +125,21 @@ class UserUpdateService:
         # asignación manual.
         if new_status == UserStatus.ACTIVE and updated is not None:
             await self.membership_service.assign_by_origin(updated)
+
+            # Correo de aprobación (feature approval-email): solo en la
+            # transición → ACTIVE (botón Aprobar/Re-aprobar), nunca en
+            # ACTIVE repetido. Fail-open: un fallo de envío no rompe la
+            # aprobación, solo se loguea.
+            if previous_status != UserStatus.ACTIVE:
+                try:
+                    await self.email_service.send_approval_email(updated)
+                except Exception as exc:  # noqa: BLE001
+                    logger.error(
+                        "No se pudo enviar el correo de aprobación "
+                        "al user %s: %s",
+                        user_id,
+                        exc,
+                    )
 
         return updated
 
