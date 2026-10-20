@@ -115,6 +115,10 @@ services:
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      # Correo de aprobación (Resend). Sin RESEND_API_KEY los envíos se
+      # omiten con warning (fail-open: aprobar siempre funciona).
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAILS_FROM: "${EMAILS_FROM:-RINCOM.ES <no-reply@rincom.es>}"
     depends_on:
       postgres:
         condition: service_healthy
