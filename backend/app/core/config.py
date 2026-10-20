@@ -131,6 +131,19 @@ class Settings(BaseSettings):
         default_factory=lambda: ["rincom.es"], alias="ALLOWED_REDIRECT_ORIGINS"
     )
 
+    # --- Hosts de desarrollo (login local contra el hub de producción) ---
+    # Hosts que pueden recibir el hub token por `http://` y con puerto no
+    # estándar (p. ej. `http://localhost:5173/auth/callback`), cosa que en
+    # producción la lista normal nunca permite. Fail-closed: vacío por
+    # defecto ⇒ sin la variable declarada nada cambia. Sólo se aceptan hosts
+    # de LOOPBACK con match exacto (localhost, 127.0.0.1, ::1): cualquier
+    # otra entrada —un dominio real por copy-paste, un sufijo público— se
+    # ignora y se loguea, sin relajar nada. La relajación cubre sólo
+    # esquema/puerto; el hostname real sigue validándose (userinfo).
+    allowed_redirect_dev_origins: Any = Field(
+        default_factory=list, alias="ALLOWED_REDIRECT_DEV_ORIGINS"
+    )
+
     # --- Esquemas de app permitidos (APK que devuelve el login) ---
     # URLs completas de esquema propio, p. ej. riderdefensa://auth/callback.
     # Son las únicas que pueden recibir el hub token cuando el flujo corre en
@@ -179,6 +192,35 @@ class Settings(BaseSettings):
                     v = v.strip("[]")
             return [i.strip().strip('"').strip("'") for i in v.split(",") if i.strip()]
         return []
+
+    @field_validator("allowed_redirect_dev_origins", mode="before")
+    @classmethod
+    def assemble_allowed_redirect_dev_origins(cls, v: Any) -> List[str]:
+        """Parsea la lista de hosts de desarrollo: lista, JSON o coma-separada."""
+        if not v:
+            return []
+        if isinstance(v, list):
+            return [str(item).strip() for item in v if str(item).strip()]
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    data = json.loads(v)
+                    if isinstance(data, list):
+                        return [str(i).strip() for i in data if str(i).strip()]
+                except (json.JSONDecodeError, TypeError):
+                    v = v.strip("[]")
+            return [i.strip().strip('"').strip("'") for i in v.split(",") if i.strip()]
+        return []
+
+    # --- Correo transaccional (Resend) ---
+    # Sin API key el envío se omite con warning (fail-open: la aprobación
+    # de usuarios nunca depende del correo).
+    resend_api_key: Optional[str] = Field(None, alias="RESEND_API_KEY")
+    # Remitente. Resend exige un dominio verificado en la cuenta.
+    emails_from: str = Field(
+        "RINCOM.ES <no-reply@rincom.es>", alias="EMAILS_FROM"
+    )
 
     # --- Cloudinary (Opcionales por si los usas luego) ---
     cloudinary_cloud_name: Optional[str] = Field(None, alias="CLOUDINARY_CLOUD_NAME")

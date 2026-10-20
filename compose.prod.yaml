@@ -99,6 +99,11 @@ services:
       # Deployment que use otro dominio DEBE declararlo acá; vacío = solo el
       # frontend del hub (sin spokes).
       ALLOWED_REDIRECT_ORIGINS: ${ALLOWED_REDIRECT_ORIGINS:-rincom.es}
+      # Hosts de desarrollo: los únicos que pueden recibir el token por http
+      # y con puerto no estándar (p. ej. un spoke en local contra este hub:
+      # http://localhost:5173/auth/callback). Fail-closed: vacío = la
+      # relajación está apagada en este deployment.
+      ALLOWED_REDIRECT_DEV_ORIGINS: ${ALLOWED_REDIRECT_DEV_ORIGINS:-}
       # Esquemas de app que devuelven el login desde un APK (p. ej. el
       # contenedor Capacitor de rider-defensa). Este deployment SÍ sirve a
       # riders con APK, y este archivo es la config de este server (el webhook
