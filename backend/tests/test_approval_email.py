@@ -9,6 +9,7 @@ de su origen. Reglas:
 - Un fallo de Resend NUNCA rompe la aprobación (fail-open).
 - Sin website_url (o sin tenant) el CTA cae al login del hub.
 """
+import re
 import uuid
 
 import httpx
@@ -18,6 +19,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.services.email.approval_email_template import BRAND
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.user import StatusUpdate
@@ -188,6 +190,41 @@ class TestApprovalSendsEmail:
 
 
 # ── No-envíos ─────────────────────────────────────────────────────
+
+
+class TestBrandLink:
+    """La marca del correo es un enlace explícito, no texto suelto.
+
+    Gmail autolinkeaba "RINCOM.ES" hacia https://rincom.es (el apex), que
+    devuelve Cloudflare 526 (Invalid SSL certificate). Cada aparición de la
+    marca en el HTML debe vivir dentro de un <a> a un dominio que responde.
+    """
+
+    BRAND_URL = "https://www.rincom.es"
+
+    @staticmethod
+    def _without_anchors(html: str) -> str:
+        return re.sub(r"<a\b[^>]*>.*?</a>", "", html, flags=re.S | re.I)
+
+    async def test_brand_is_an_anchor_and_never_bare_text(
+        self, client: AsyncClient, db_session: AsyncSession, resend: ResendRecorder
+    ):
+        admin = await seed_admin(db_session)
+        await seed_tenant(
+            db_session, slug="rincom", name="rincom",
+            website_url="https://www.rincom.es",
+        )
+        target = await seed_user(db_session, origin="rincom")
+
+        response = await set_status(client, admin, target, UserStatus.ACTIVE)
+
+        assert response.status_code == status.HTTP_200_OK
+        html = resend.payload["html"]
+        # El pie (y la cabecera) enlazan al sitio que sí responde 200
+        assert f'<a href="{self.BRAND_URL}"' in html
+        assert f">{BRAND}</a>" in html
+        # Fuera de un <a> la marca no aparece nunca: nada para autolinkear
+        assert BRAND not in self._without_anchors(html)
 
 
 class TestApprovalEmailNotSent:
