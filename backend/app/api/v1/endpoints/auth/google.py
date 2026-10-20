@@ -63,10 +63,42 @@ def _allowed_redirect_hosts() -> List[str]:
     return hosts
 
 
+# Sólo el loopback califica para la relajación dev: un dominio real en la
+# lista (copy-paste de ALLOWED_REDIRECT_ORIGINS, un sufijo público tipo
+# "es") se IGNORA y no autoriza nada.
+_DEV_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def _allowed_redirect_dev_hosts() -> List[str]:
+    """Entradas de ALLOWED_REDIRECT_DEV_ORIGINS que califican como dev.
+
+    Lista fail-closed (vacía por defecto): sólo acepta hosts de loopback y
+    con match exacto (sin la semántica de subdominios de la lista normal:
+    `localhost` no cubre `evil.localhost`). Son los ÚNICOS hosts hacia los
+    que el token puede salir por `http` o con puerto no estándar en
+    producción; cualquier otra entrada se ignora y se registra en el log.
+    """
+    qualified: List[str] = []
+    for entry in settings.allowed_redirect_dev_origins or []:
+        host = str(entry).lower().strip().rstrip(".")
+        if not host:
+            continue
+        if host in _DEV_LOOPBACK_HOSTS:
+            qualified.append(host)
+        else:
+            logging.warning(
+                "⛔ ALLOWED_REDIRECT_DEV_ORIGINS ignorada (no es loopback): %s",
+                entry,
+            )
+    return qualified
+
+
 def _is_allowed_redirect(url: str) -> bool:
     """S3 (apk-login-deeplink): el token solo sale hacia un host permitido.
 
-    - https obligatorio en producción (http queda para dev local).
+    - https obligatorio en producción, salvo para hosts de loopback
+      declarados en ALLOWED_REDIRECT_DEV_ORIGINS (login en local, p. ej.
+      `http://localhost:5173/auth/callback`).
     - `https://bueno@evil.com` no engaña: se valida el hostname real.
     """
     parsed = urlparse(url)
@@ -78,20 +110,28 @@ def _is_allowed_redirect(url: str) -> bool:
         port = parsed.port
     except ValueError:
         return False
-    if settings.is_production and port not in (None, 443, 80):
-        return False
     scheme = (parsed.scheme or "").lower()
-    if scheme == "https":
-        pass
-    elif scheme == "http":
-        if settings.is_production:
-            return False
-    else:
+    if scheme not in ("http", "https"):
         return False
     host = parsed.hostname
     if not host:
         return False
-    return any(_host_matches(host, allowed) for allowed in _allowed_redirect_hosts())
+
+    # Host dev declarado → relajación ACOTADA de esquema y puerto (lo que no
+    # se puede relajar en producción es justo esto), sólo para loopback y con
+    # match exacto. El hostname real ya se validó arriba.
+    dev_hosts = _allowed_redirect_dev_hosts()
+    is_dev_host = host.lower().rstrip(".") in dev_hosts
+    if not is_dev_host:
+        if settings.is_production and port not in (None, 443, 80):
+            return False
+        if scheme == "http" and settings.is_production:
+            return False
+
+    if any(_host_matches(host, entry) for entry in _allowed_redirect_hosts()):
+        return True
+    # La lista dev entra SIEMPRE con match exacto: nunca por subdominios.
+    return host.lower().rstrip(".") in dev_hosts
 
 
 def _is_allowed_app_redirect(url: str) -> bool:

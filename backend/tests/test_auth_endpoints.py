@@ -512,6 +512,91 @@ class TestAllowedRedirectPolicy:
         hub = json.dumps({"redirect_to": f"{FRONTEND_URL}/dashboard"})
         assert _get_frontend_redirect(hub) == f"{FRONTEND_URL}/dashboard"
 
+    # --- Hosts de desarrollo declarados (ALLOWED_REDIRECT_DEV_ORIGINS) ---
+
+    async def test_dev_origin_keeps_http_with_port_in_production(
+        self, monkeypatch
+    ):
+        """Un host declarado como dev recibe el token por http y con puerto
+        no estándar aunque el hub corra en producción (login en local)."""
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        monkeypatch.setattr(settings, "allowed_redirect_dev_origins", ["localhost"])
+        state = json.dumps({"redirect_to": "http://localhost:5173/auth/callback"})
+        assert (
+            _get_frontend_redirect(state) == "http://localhost:5173/auth/callback"
+        )
+
+    async def test_dev_origin_keeps_https_with_port_in_production(
+        self, monkeypatch
+    ):
+        """La relajación cubre también https con puerto no estándar."""
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        monkeypatch.setattr(settings, "allowed_redirect_dev_origins", ["localhost"])
+        state = json.dumps({"redirect_to": "https://localhost:5173/x"})
+        assert _get_frontend_redirect(state) == "https://localhost:5173/x"
+
+    async def test_dev_origin_unset_still_rejects_localhost(self, monkeypatch):
+        """Fail-closed: sin la variable declarada nada cambia."""
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        monkeypatch.setattr(settings, "allowed_redirect_dev_origins", [])
+        state = json.dumps({"redirect_to": "http://localhost:5173/auth/callback"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_dev_origin_does_not_open_other_hosts(self, monkeypatch):
+        """Declarar localhost no autoriza a otros hosts a recibir http."""
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        monkeypatch.setattr(settings, "allowed_redirect_dev_origins", ["localhost"])
+        state = json.dumps({"redirect_to": "http://evil.example.com/robar"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_dev_origin_does_not_relax_regular_spokes(self, monkeypatch):
+        """Un host en la lista normal NO gana http/puerto por el hecho de
+        existir la lista dev: la relajación es sólo para hosts declarados
+        como dev."""
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        monkeypatch.setattr(settings, "allowed_redirect_dev_origins", ["localhost"])
+        state = json.dumps({"redirect_to": "http://riderdefensa.rincom.es/x"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_dev_origin_still_rejects_userinfo(self, monkeypatch):
+        """El chequeo de userinfo es previo a TODO: ni con un host dev
+        declarado. `http://user@localhost:5173/` es el input aislante (el
+        host SÍ califica, sólo lo frena userinfo); el de evil.com queda como
+        red de seguridad del allowlist."""
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        monkeypatch.setattr(settings, "allowed_redirect_dev_origins", ["localhost"])
+        on_dev_host = json.dumps({"redirect_to": "http://user@localhost:5173/"})
+        assert _get_frontend_redirect(on_dev_host) == f"{FRONTEND_URL}/login"
+        other_host = json.dumps({"redirect_to": "http://localhost@evil.example.com/"})
+        assert _get_frontend_redirect(other_host) == f"{FRONTEND_URL}/login"
+
+    async def test_dev_origin_ignores_non_loopback_entries(self, monkeypatch):
+        """F1: una entrada que no es loopback NO relaja nada ni autoriza
+        entrega de token — declarar un dominio de producción en la lista dev
+        por error de copy-paste no abre http ni puertos raros."""
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        monkeypatch.setattr(settings, "allowed_redirect_dev_origins", ["rincom.es"])
+        http = json.dumps({"redirect_to": "http://rincom.es/cb"})
+        assert _get_frontend_redirect(http) == f"{FRONTEND_URL}/login"
+        port = json.dumps({"redirect_to": "http://api.rincom.es:9999/cb"})
+        assert _get_frontend_redirect(port) == f"{FRONTEND_URL}/login"
+
+    async def test_dev_origin_ignores_bare_suffix_entries(self, monkeypatch):
+        """F1: una entrada tipo sufijo público ("es") no habilita a todos
+        los dominios `.es` a recibir el token por http."""
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        monkeypatch.setattr(settings, "allowed_redirect_dev_origins", ["es"])
+        state = json.dumps({"redirect_to": "http://evil.es/cb"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
+    async def test_dev_origin_matches_host_exactly(self, monkeypatch):
+        """F3: `localhost` no cubre `evil.localhost` (match exacto, sin la
+        semántica de subdominios de la lista normal)."""
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        monkeypatch.setattr(settings, "allowed_redirect_dev_origins", ["localhost"])
+        state = json.dumps({"redirect_to": "http://evil.localhost:5173/cb"})
+        assert _get_frontend_redirect(state) == f"{FRONTEND_URL}/login"
+
     async def test_google_callback_unknown_host_gets_no_token(
         self, client, db_session, test_user, mock_google_exchange
     ):

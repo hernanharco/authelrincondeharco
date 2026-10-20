@@ -87,6 +87,15 @@ TITLE_BACKEND=AuthCore Backend
 # Default: rincom.es. Vacío explícito = solo el frontend del hub.
 ALLOWED_REDIRECT_ORIGINS=rincom.es
 
+# Hosts de desarrollo: los ÚNICOS que pueden recibir el hub token por http y
+# con puerto no estándar (spoke corriendo en local contra este hub de
+# producción, p. ej. http://localhost:5173/auth/callback).
+# Fail-closed: vacío = la relajación está apagada en este deployment.
+# Sólo se aceptan hosts de loopback (localhost, 127.0.0.1, ::1) con match
+# exacto: cualquier otra entrada (un dominio real por copy-paste, un sufijo
+# público) se IGNORA y queda registrada en el log — declararla no abre nada.
+ALLOWED_REDIRECT_DEV_ORIGINS=localhost
+
 # Esquemas de app que devuelven el login desde un APK nativo
 # (el navegador no maneja riderdefensa:// ⇒ el SO abre la app que lo declara).
 # URLs completas, sin query. Vacío = fail closed (nadie).
@@ -102,6 +111,15 @@ absoluto solo se acepta si su host está declarado en
 `ALLOWED_REDIRECT_ORIGINS` (o es el host del `FRONTEND_URL`) y el esquema es
 `https` en producción; si no, el usuario cae en el login del hub **sin**
 token. Un deployment con spokes propios debe declararlos en esa variable.
+
+Esa misma regla impide que un spoke en **local** (`http://localhost:5173`)
+reciba el token: en producción no hay `http` ni puertos fuera de 443/80. La
+excepción se declara en `ALLOWED_REDIRECT_DEV_ORIGINS` (vacío por defecto =
+apagada): relaja esquema y puerto **sólo** para entradas de loopback con
+match exacto (`localhost`, `127.0.0.1`, `::1`), el hostname real sigue
+validándose (los trucos de userinfo siguen cayendo al login del hub) y
+ningún host no declarado —ni siquiera un dominio real metido en la lista por
+equivocación— se beneficia de la relajación.
 
 Cuando el login corre dentro de un APK (contenedor Capacitor de
 rider-defensa), el redirect usa el **esquema propio**
