@@ -54,12 +54,16 @@ class TenantMemberResponse(BaseModel):
     """Miembro de un tenant con su rol de MEMBRESÍA (GET /tenants/{id}/users).
 
     `role_tenant` es el rol en user_tenants, NO el rol global users.role.
+    `role_global` sí es el rol de plataforma (users.role): la vista lo usa
+    para mostrar SUPERADMIN cuando el rol global lo es, sin alterar la
+    membresía.
     """
 
     id: int
     username: str
     email: str
     role_tenant: str
+    role_global: str
     status: str
     login_count: int
     last_login: Optional[datetime] = None

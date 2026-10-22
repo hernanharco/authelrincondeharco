@@ -59,6 +59,8 @@ async def list_tenant_users(
     """Miembros de un tenant con su rol de membresía. Requiere rol ADMIN.
 
     `role_tenant` viene de `user_tenants`, no del rol global del usuario.
+    `role_global` sí expone `users.role`, para que la vista pinte
+    SUPERADMIN cuando el rol de plataforma lo es.
     """
     return await tenant_service.get_tenant_users(tenant_id)
 
