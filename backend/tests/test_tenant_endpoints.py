@@ -255,14 +255,16 @@ async def _seed_member(
     email: str,
     tenant_id: str,
     membership_role: str = "USER",
+    global_role: str = "USER",
     status=None,
     last_login=None,
     login_count: int = 0,
 ):
     """Usuario + fila en user_tenants (la fuente real de membresía).
 
-    El rol GLOBAL del usuario es siempre USER: `role_tenant` en la
-    respuesta debe venir de la membresía, no de users.role.
+    `membership_role` es el rol EN EL TENANT (user_tenants.role);
+    `global_role` es el rol de plataforma (users.role). Por defecto el
+    global es USER para no alterar los escenarios existentes.
     """
     from app.models.user import User
     from app.models.user_tenant import UserTenant
@@ -273,7 +275,7 @@ async def _seed_member(
         email=email,
         full_name=username.title(),
         password_hash="$2b$12$hashed_password",
-        role=UserRole.USER,
+        role=UserRole(global_role),
         status=status if status is not None else UserStatus.ACTIVE,
         is_active=True,
         last_login=last_login,
@@ -370,6 +372,7 @@ class TestTenantUsageEndpoints:
         "username",
         "email",
         "role_tenant",
+        "role_global",
         "status",
         "login_count",
         "last_login",
@@ -437,6 +440,46 @@ class TestTenantUsageEndpoints:
         empty_res = await client.get(f"/api/v1/tenants/{empty.id}/users", headers=auth)
         assert empty_res.status_code == 200
         assert empty_res.json() == []
+
+    async def test_tenant_users_expose_global_role_separately(
+        self, client: AsyncClient, db_session
+    ):
+        """role_global (users.role) es independiente de role_tenant (membresía).
+
+        Un SUPERADMIN global con membresía ADMIN en el tenant debe exponer
+        role_global=SUPERADMIN y role_tenant=ADMIN. La vista usa role_global
+        para pintar "Superadmin" cuando el rol de plataforma lo es.
+        """
+        token = await _get_auth_token(client, db_session)
+        big, _, _ = await _seed_usage_scenario(db_session)
+        await _seed_member(
+            db_session,
+            username="harco",
+            email="harco@big.test",
+            tenant_id=big.id,
+            membership_role="ADMIN",
+            global_role="SUPERADMIN",
+        )
+        auth = {"Authorization": f"Bearer {token}"}
+
+        response = await client.get(f"/api/v1/tenants/{big.id}/users", headers=auth)
+
+        assert response.status_code == 200
+        data = response.json()
+        by_user = {m["username"]: m for m in data}
+
+        harco = by_user["harco"]
+        assert harco["role_global"] == "SUPERADMIN"
+        # La membresía sigue siendo ADMIN: son campos distintos
+        assert harco["role_tenant"] == "ADMIN"
+
+        # Los miembros del escenario conservan rol global USER
+        alice = by_user["alice"]
+        assert alice["role_global"] == "USER"
+        assert alice["role_tenant"] == "ADMIN"
+
+        # Todos los miembros exponen role_global
+        assert all("role_global" in m for m in data)
 
     async def test_legacy_tenant_id_not_used_as_membership(
         self, client: AsyncClient, db_session

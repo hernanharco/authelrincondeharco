@@ -125,7 +125,9 @@ class TenantRepository(ITenantRepository):
     async def get_members_by_tenant(self, tenant_id: str) -> List[Dict[str, Any]]:
         """Miembros de un tenant vía user_tenants (la membresía real).
 
-        `role_tenant` es el rol de la membresía, no el rol global del usuario.
+        `role_tenant` es el rol de la membresía (user_tenants.role).
+        `role_global` es el rol de plataforma del usuario (users.role):
+        la vista lo usa para pintar "Superadmin" cuando el rol global lo es.
         Orden: last_login DESC NULLS LAST, luego username ASC.
         """
         stmt = (
@@ -134,6 +136,7 @@ class TenantRepository(ITenantRepository):
                 User.username,
                 User.email,
                 UserTenant.role.label("role_tenant"),
+                User.role.label("role_global"),
                 User.status,
                 User.login_count,
                 User.last_login,
@@ -149,6 +152,7 @@ class TenantRepository(ITenantRepository):
                 "username": row.username,
                 "email": row.email,
                 "role_tenant": row.role_tenant,
+                "role_global": getattr(row.role_global, "value", row.role_global),
                 "status": row.status.value
                 if isinstance(row.status, UserStatus)
                 else row.status,

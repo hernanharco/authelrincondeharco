@@ -9,6 +9,7 @@
    * access_token es httpOnly y este dominio no la lee.
    */
   import { formatDate } from '../../utils/date';
+  import { displayMemberRole, memberRoleTooltip } from '../../utils/auth.roles';
   import { apiUrl, ENDPOINTS } from '../../config/api.config';
   import UserAvatar from './UserAvatar.svelte';
   import RoleBadge from './RoleBadge.svelte';
@@ -19,6 +20,7 @@
     username: string;
     email: string;
     role_tenant: string;
+    role_global?: string | null;
     status: string;
     login_count: number;
     last_login: string | null;
@@ -151,7 +153,10 @@
                 </div>
               </td>
               <td class="py-3 px-4">
-                <RoleBadge role={enumKey(member.role_tenant)} />
+                <RoleBadge
+                  role={displayMemberRole(member.role_tenant, member.role_global)}
+                  title={memberRoleTooltip(member.role_tenant, member.role_global)}
+                />
               </td>
               <td class="py-3 px-4">
                 <StatusBadge status={enumKey(member.status)} />

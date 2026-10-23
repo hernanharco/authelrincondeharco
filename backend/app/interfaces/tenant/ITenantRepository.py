@@ -70,7 +70,7 @@ class ITenantRepository(ABC):
     async def get_members_by_tenant(self, tenant_id: str) -> List[Dict[str, Any]]:
         """Miembros de un tenant vía user_tenants (rol de membresía).
 
-        Devuelve filas planas (id, username, email, role_tenant, status,
+        Devuelve filas planas (id, username, email, role_tenant, role_global, status,
         login_count, last_login) ordenadas por last_login DESC NULLS LAST
         y luego username.
         """

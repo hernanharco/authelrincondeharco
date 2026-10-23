@@ -1,5 +1,6 @@
 <script lang="ts">
   import { formatDate } from '../../utils/date';
+  import { displayMemberRole, memberRoleTooltip } from '../../utils/auth.roles';
   import { apiUrl, ENDPOINTS } from '../../config/api.config';
   import UserAvatar from './UserAvatar.svelte';
   import RoleBadge from './RoleBadge.svelte';
@@ -20,6 +21,7 @@
     username: string;
     email: string;
     role_tenant: string;
+    role_global?: string | null;
     status: string;
     login_count: number;
     last_login: string | null;
@@ -202,7 +204,10 @@
                           <div class="truncate text-xs text-[#9CA3AF]">{member.email}</div>
                         </div>
                         <div class="flex shrink-0 items-center gap-2">
-                          <RoleBadge role={enumKey(member.role_tenant)} />
+                          <RoleBadge
+                            role={displayMemberRole(member.role_tenant, member.role_global)}
+                            title={memberRoleTooltip(member.role_tenant, member.role_global)}
+                          />
                           <StatusBadge status={enumKey(member.status)} />
                         </div>
                         <div class="w-28 shrink-0 text-right text-xs tabular-nums text-[#9CA3AF]">

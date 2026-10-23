@@ -4,9 +4,11 @@
     editable?: boolean;
     onRoleChange?: (newRole: string) => void;
     class?: string;
+    /** Tooltip nativo: aclara rol global vs membresía cuando difieren. */
+    title?: string;
   }
 
-  let { role, editable = false, onRoleChange, class: className = '' }: Props = $props();
+  let { role, editable = false, onRoleChange, class: className = '', title }: Props = $props();
 
   let isOpen = $state(false);
   let selectedRole = $state(role);
@@ -47,6 +49,7 @@
   {#if editable}
     <button
       class={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${roleColors[role as keyof typeof roleColors]} ${className} hover:opacity-80 cursor-pointer`}
+      {title}
       onclick={() => (isOpen = !isOpen)}
     >
       {getRoleLabel(role)}
@@ -72,6 +75,7 @@
   {:else}
     <span
       class={`px-2 py-1 rounded-full text-xs font-medium ${roleColors[role as keyof typeof roleColors]} ${className}`}
+      {title}
     >
       {getRoleLabel(role)}
     </span>

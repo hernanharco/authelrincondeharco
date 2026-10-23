@@ -9,6 +9,17 @@ la aplicación que solicitó (tenant.website_url, con fallback al login).
 from html import escape
 
 BRAND = "RINCOM.ES"
+BRAND_URL = "https://www.rincom.es"
+
+
+def _brand_link(style: str) -> str:
+    """Marca envuelta en un <a> explícito al sitio que sí responde 200.
+
+    El texto suelto "RINCOM.ES" lo autolinkean los clientes de correo hacia
+    https://rincom.es (apex), que devuelve Cloudflare 526 (Invalid SSL
+    certificate); con un <a> explícito el clic cae en www, que responde.
+    """
+    return f'<a href="{BRAND_URL}" style="{style}">{BRAND}</a>'
 
 
 def approval_subject(app_name: str) -> str:
@@ -31,7 +42,7 @@ def approval_html(full_name: str, app_name: str, cta_url: str) -> str:
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#FFFFFF;border-radius:12px;border:1px solid #E2E8F0;">
           <tr>
             <td style="background-color:#0F172A;padding:24px 32px;">
-              <span style="font-size:20px;font-weight:bold;color:#FFFFFF;">{BRAND}</span>
+              <span style="font-size:20px;font-weight:bold;color:#FFFFFF;">{_brand_link("color:#FFFFFF;text-decoration:none;")}</span>
               <span style="font-size:12px;color:#94A3B8;display:block;margin-top:4px;">Gestión de accesos</span>
             </td>
           </tr>
@@ -59,7 +70,7 @@ def approval_html(full_name: str, app_name: str, cta_url: str) -> str:
             <td style="background-color:#F8FAFC;padding:20px 32px;border-top:1px solid #E2E8F0;">
               <p style="margin:0;font-size:12px;line-height:18px;color:#94A3B8;">
                 Este mensaje es automático; no respondas a este correo.<br>
-                {BRAND} &mdash; Enviado porque tu acceso fue aprobado por un administrador.
+                {_brand_link("color:#2563EB;text-decoration:underline;")} &mdash; Enviado porque tu acceso fue aprobado por un administrador.
               </p>
             </td>
           </tr>
