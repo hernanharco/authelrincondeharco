@@ -32,7 +32,14 @@ from app.core.security import get_current_active_user, oauth2_scheme
 from app.db.session import get_db
 from app.models.user import User
 from app.models.user_session import UserSession
-from app.schemas.session import RevokeAllResponse, SessionCreateResponse, SessionInfo
+from app.schemas.auth import RefreshTokenRequest
+from app.schemas.session import (
+    RevokeAllResponse,
+    SessionCreateResponse,
+    SessionInfo,
+    SessionRefreshResponse,
+)
+from app.services.auth.TokenService import TokenService
 
 router = APIRouter()
 
@@ -81,6 +88,31 @@ async def get_session_id_claim(
     return sid if isinstance(sid, str) and sid else None
 
 
+async def _active_session_or_401(db: AsyncSession, digest: str) -> UserSession:
+    """Busca la fila por hash del refresh y valida vigencia (S8/S4)."""
+    result = await db.execute(
+        select(UserSession).where(UserSession.refresh_token_hash == digest)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise _UNAUTHORIZED
+    if row.revoked_at is not None:
+        # Reuse detection: un refresh ya revocado ⇒ la familia entera cae.
+        await db.execute(
+            update(UserSession)
+            .where(
+                UserSession.family_id == row.family_id,
+                UserSession.revoked_at.is_(None),
+            )
+            .values(revoked_at=func.now())
+        )
+        await db.commit()
+        raise _UNAUTHORIZED
+    if _aware(row.expires_at) <= datetime.now(timezone.utc):
+        raise _UNAUTHORIZED
+    return row
+
+
 # ── POST /auth/sessions ─────────────────────────────────────────
 
 
@@ -115,6 +147,69 @@ async def create_session(
     return SessionCreateResponse(
         session_id=session_id,
         refresh_token=refresh,
+        refresh_expires_in=settings.refresh_session_expire_seconds,
+    )
+
+
+# ── POST /auth/refresh ──────────────────────────────────────────
+
+
+@router.post("/refresh", response_model=SessionRefreshResponse)
+async def refresh_session(
+    data: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+) -> SessionRefreshResponse:
+    """Canjea un refresh vigente por un hub nuevo (120 min) + refresh rotado.
+
+    La rotación revoca la fila vieja y crea otra con la MISMA expiración de
+    familia. El hub nuevo lleva claim `sid` = id de la fila vigente.
+    """
+    row = await _active_session_or_401(db, _hash_token(data.refresh_token))
+
+    result = await db.execute(select(User).where(User.id == row.user_id))
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_active:
+        raise _UNAUTHORIZED
+
+    # ── Rotación (S8) ──
+    new_refresh = _new_refresh_token()
+    new_session_id = str(uuid.uuid4())
+    await db.execute(
+        update(UserSession)
+        .where(UserSession.id == row.id, UserSession.revoked_at.is_(None))
+        .values(revoked_at=func.now())
+    )
+    successor = UserSession(
+        id=new_session_id,
+        family_id=row.family_id,
+        user_id=row.user_id,
+        refresh_token_hash=_hash_token(new_refresh),
+        user_agent=row.user_agent,
+        expires_at=row.expires_at,  # misma expiración: 90 d desde el primer login
+        last_seen_at=func.now(),
+    )
+    db.add(successor)
+    await db.commit()
+
+    # ── Hub nuevo con sid (S9) ──
+    now = datetime.now(timezone.utc)
+    token_service = TokenService()
+    token, expires_at = await token_service.create_access_token(
+        {
+            "sub": str(user.id),
+            "username": user.username,
+            "email": user.email,
+            "role": user.role.value,
+            "type": "access",
+            "sid": new_session_id,
+        }
+    )
+    expires_in = int((expires_at - now).total_seconds())
+
+    return SessionRefreshResponse(
+        access_token=token,
+        expires_in=expires_in,
+        refresh_token=new_refresh,
         refresh_expires_in=settings.refresh_session_expire_seconds,
     )
 
