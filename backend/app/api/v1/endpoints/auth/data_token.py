@@ -15,15 +15,21 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError, jwt
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import func
 
 from app.api.v1.dependencies import get_token_service
+from app.api.v1.endpoints.auth.sessions import get_session_id_claim
 from app.core.config import settings
 from app.core.crypto import get_public_key
 from app.core.security import get_current_active_user, oauth2_scheme
+from app.db.session import get_db
 from app.interfaces.auth.ITokenService import ITokenService
 from app.models.user import User
+from app.models.user_session import UserSession
 from app.schemas.auth import TokenResponse
 
 # ── Vida del data token ────────────────────────────────────────────────────
@@ -67,6 +73,8 @@ async def data_token(
     user: User = Depends(get_current_active_user),
     token_service: ITokenService = Depends(get_token_service),
     hub_claims: dict[str, Any] = Depends(get_hub_token_claims),
+    sid: str | None = Depends(get_session_id_claim),
+    db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
     """
     Minta un data token con scope Supabase para el usuario autenticado.
@@ -87,12 +95,44 @@ async def data_token(
     Raises:
         HTTPException: 401 si el hub token falta, es inválido o ha expirado
     """
+    # ── Sesión persistente: si el hub trae `sid`, la sesión debe estar viva ─
+    # (S9, persistent-mobile-session). Es el punto donde el cierre remoto se
+    # hace efectivo en ≤15 min: el spoke pide data-token con esa cadencia.
+    # Los hubs SIN `sid` (otros spokes, frontend del hub) no se verifican (S5).
+    if sid:
+        row = await db.get(UserSession, sid)
+        now = datetime.now(timezone.utc)
+        expires_at = row.expires_at if row is not None else None
+        if expires_at is not None and expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if (
+            row is None
+            or row.revoked_at is not None
+            or (expires_at is not None and expires_at <= now)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Sesión revocada o expirada",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        # last_seen_at best-effort (no en cada request, solo al rotar datos)
+        await db.execute(
+            update(UserSession)
+            .where(UserSession.id == sid)
+            .values(last_seen_at=func.now())
+        )
+        await db.commit()
+
     # ── Claims mínimos: identidad mínima + rol Postgres literal ──
     token_data: dict[str, object] = {
         "sub": str(user.id),
         "role": DATA_TOKEN_ROLE,
         "type": DATA_TOKEN_TYPE,
     }
+
+    # ── Sesión: el data token hereda el claim sid (re-minteo, S9) ──
+    if sid:
+        token_data["sid"] = sid
 
     # ── Tenant: hereda el claim del hub JWT entrante (A11) ──────
     # La spoke pide el tenant explícitamente vía /users/select-tenant, y ese

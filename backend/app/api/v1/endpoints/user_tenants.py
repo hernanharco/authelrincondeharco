@@ -7,17 +7,19 @@ Flujo de Tenant Switching:
 """
 import uuid
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_db
-from app.models.user import User
-from app.models.tenant import Tenant
-from app.models.user_tenant import UserTenant
-from app.models.tenant_module import TenantModule
-from app.schemas.user_tenant import UserTenantResponse, SelectTenantRequest
+from app.api.v1.endpoints.auth.sessions import get_session_id_claim
 from app.core.security import get_current_active_user
+from app.db.session import get_db
+from app.models.tenant import Tenant
+from app.models.tenant_module import TenantModule
+from app.models.user import User
+from app.models.user_tenant import UserTenant
+from app.schemas.user_tenant import SelectTenantRequest, UserTenantResponse
 from app.services.auth.TokenService import TokenService
 
 router = APIRouter()
@@ -76,6 +78,7 @@ async def get_my_tenants(
 async def select_tenant(
     data: SelectTenantRequest,
     current_user: User = Depends(get_current_active_user),
+    sid: str | None = Depends(get_session_id_claim),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -104,7 +107,9 @@ async def select_tenant(
     result = await db.execute(select(Tenant).where(Tenant.id == data.tenant_id))
     tenant = result.scalar_one_or_none()
     if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Tenant no encontrado"
+        )
 
     # Obtener módulos activos del tenant
     result = await db.execute(
@@ -132,8 +137,13 @@ async def select_tenant(
         "tenant": {"id": tenant.id, "slug": tenant.slug, "name": tenant.name},
         "modules": modules_dict,
     }
+    # Sesión persistente: el re-minteo conserva el claim sid del hub entrante
+    # (S9, persistent-mobile-session). Sin sid → igual que siempre (S5).
+    if sid:
+        token_data["sid"] = sid
 
     from datetime import datetime, timezone
+
     token, expires_at = await token_service.create_access_token(token_data)
     expires_in = int((expires_at - datetime.now(timezone.utc)).total_seconds())
 
