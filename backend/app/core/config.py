@@ -1,5 +1,6 @@
 import json
 from typing import Any, List, Optional
+
 from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -66,6 +67,12 @@ class Settings(BaseSettings):
 
     # --- JWT Settings ---
     access_token_expire_minutes: int = Field(120, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    # Vida de una sesión persistente (refresh token del spoke): 90 días.
+    # La rotación del refresh NO la extiende (se copia expires_at de la
+    # familia). Feature: persistent-mobile-session (S4).
+    refresh_session_expire_seconds: int = Field(
+        7776000, alias="REFRESH_SESSION_EXPIRE_SECONDS"
+    )
     algorithm: str = Field("RS256", alias="ALGORITHM")
     # Claim `iss` de los access/refresh tokens: la base URL del hub.
     # Los spokes (p. ej. Prixline) lo exigen al verificar (AUTH-FLOW.md);
@@ -218,9 +225,7 @@ class Settings(BaseSettings):
     # de usuarios nunca depende del correo).
     resend_api_key: Optional[str] = Field(None, alias="RESEND_API_KEY")
     # Remitente. Resend exige un dominio verificado en la cuenta.
-    emails_from: str = Field(
-        "RINCOM.ES <no-reply@rincom.es>", alias="EMAILS_FROM"
-    )
+    emails_from: str = Field("RINCOM.ES <no-reply@rincom.es>", alias="EMAILS_FROM")
 
     # --- Cloudinary (Opcionales por si los usas luego) ---
     cloudinary_cloud_name: Optional[str] = Field(None, alias="CLOUDINARY_CLOUD_NAME")
