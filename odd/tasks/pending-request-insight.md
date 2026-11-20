@@ -54,10 +54,10 @@ por un fallo se reintentan en la siguiente ventana.
 
 ## Tasks
 
-- [ ] T1 (S1, S2) Captura y persistencia de la ubicación + campos en `UserResponse` — commit 1
-- [ ] T2 (S3, S4, S5, S6) Correo de aviso a administradores con agrupación de 1 h — commit 2
-- [ ] T3 (S1, S2) Fecha y ubicación en la tarjeta de `/dashboard/pending` — commit 3
-- [ ] T4 (S1-S6) Verificación: tests + suite completa
+- [x] T1 (S1, S2) Captura y persistencia de la ubicación + campos en `UserResponse` — commit 2e46792
+- [x] T2 (S3, S4, S5, S6) Correo de aviso a administradores con agrupación de 1 h — commit 41c9d35 (+ plantilla 14143bb)
+- [x] T3 (S1, S2) Fecha y ubicación en la tarjeta de `/dashboard/pending` — commit 1de7aec
+- [x] T4 (S1-S6) Verificación: tests + suite completa
 
 ## Log
 
@@ -85,3 +85,14 @@ L6: el usuario pregunta la opinión sobre el diseño ("o que opinas"). Respuesta
 solicitud de una ráfaga sin avisar; (b) país siempre disponible con `CF-IPCountry`, ciudad
 cuando se active la Managed Transform; (c) los pendientes existentes mostrarán "sin
 ubicación": no hay IP histórica y no se aproxima.
+
+L7 (verificación): suite completa del backend en verde con cobertura 88% (gates 80%).
+`astro build` compila la página. Defecto encontrado y corregido por sus tests: un mapping
+de cabeceras vacío se trataba como "sin request" y perdía también la IP del cliente.
+Incidente de método: dos runs de pytest en paralelo comparten `backend/test.db` y sus
+fixtures borran tablas por test, así que producen errores fantasma; los runs van en serie.
+
+L8 (slices): 6 commits en `feat/pending-request-insight`, todos ≤ 400 líneas cambiadas.
+Límite de slice de PR en ~400 líneas (AGENTS.md) ya superado por la rama completa, así que
+la entrega va como dos PRs encadenados: fecha/ubicación (2e46792, 12e2ffc, 1de7aec) y aviso
+por correo (14143bb, 41c9d35, 1e59cbf).
