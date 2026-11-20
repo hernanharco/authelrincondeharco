@@ -27,6 +27,7 @@ USER_COLUMNS: Sequence[Tuple[str, str]] = (
     ("request_country", "VARCHAR(2)"),
     ("request_city", "VARCHAR(128)"),
     ("request_region", "VARCHAR(128)"),
+    ("approval_notified_at", "TIMESTAMP WITH TIME ZONE"),
 )
 
 

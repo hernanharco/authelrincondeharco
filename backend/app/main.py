@@ -1,6 +1,8 @@
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import asyncio
+import logging
 import sys
 
 from fastapi import FastAPI
@@ -13,10 +15,37 @@ from slowapi import _rate_limit_exceeded_handler
 
 from app.core.config import settings
 from app.core.ratelimit import limiter
-from app.db.session import engine
+from app.db.session import engine, AsyncSessionLocal
+from app.db.migrations import apply_idempotent_migrations
 from app.models.base import Base
 import app.models  # noqa: E402 — registra modelos en Base.metadata
 from app.api.route import api_router
+from app.services.email.PendingRequestNotifier import PendingRequestNotifier
+
+logger = logging.getLogger("authCore.main")
+
+# Cada cuánto se reintenta el aviso de solicitudes pendientes (S4).
+# La ventana de 1 h decide si toca enviar; este loop sólo garantiza que la
+# última solicitud de una ráfaga no quede sin avisar.
+PENDING_NOTIFICATION_CHECK_SECONDS = 600
+
+
+async def _pending_request_notification_loop() -> None:
+    """Chequeo periódico del aviso a administradores.
+
+    `entrypoint.sh` arranca uvicorn sin `--workers`, así que hay un único
+    proceso y este loop no puede duplicar correos.
+    """
+    while True:
+        await asyncio.sleep(PENDING_NOTIFICATION_CHECK_SECONDS)
+        try:
+            async with AsyncSessionLocal() as session:
+                await PendingRequestNotifier(session).notify_if_due()
+        except Exception:  # noqa: BLE001 — un aviso nunca tumba la API
+            logger.error(
+                "Falló el chequeo periódico de solicitudes pendientes",
+                exc_info=True,
+            )
 
 
 @asynccontextmanager
@@ -48,13 +77,25 @@ async def lifespan(app: FastAPI):
                     print("info: Schema sincronizado (sin cambios pendientes)")
 
             await conn.run_sync(_sync_create_tables)
+
+            # Columnas nuevas de tablas ya existentes (create_all no las agrega).
+            # Idempotente: agregar sólo lo que falta, nunca toca filas.
+            added_columns = await apply_idempotent_migrations(conn)
+            if added_columns:
+                print(f"✅ Columnas agregadas a users: {', '.join(added_columns)}")
     
     except Exception as e:
         print(f"❌ Error en DB: {str(e)}", file=sys.stderr)
         raise
 
     print(f"--- Dominio de la aplicación: {settings.APP_DOMAIN} ---")
+
+    notification_task = asyncio.create_task(_pending_request_notification_loop())
     yield
+
+    notification_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await notification_task
     await engine.dispose()
 
 

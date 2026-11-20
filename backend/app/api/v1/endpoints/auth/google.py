@@ -7,10 +7,16 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from app.api.v1.dependencies import get_auth_service
+from app.api.v1.dependencies import (
+    get_auth_service,
+    get_pending_request_notifier,
+)
 from app.core.config import settings
 from app.core.geo import extract_request_location
 from app.services.auth.AuthService import AuthService
+from app.services.email.PendingRequestNotifier import PendingRequestNotifier
+
+logger = logging.getLogger("authCore.google")
 
 router = APIRouter()
 
@@ -233,12 +239,27 @@ def _status_or_error_redirect(state: str, query: str) -> RedirectResponse:
     return RedirectResponse(url=f"{redirect_dest}{separator}{query}")
 
 
+async def _notify_pending_best_effort(
+    pending_notifier: PendingRequestNotifier,
+) -> None:
+    """Dispara el aviso a administradores sin poder romper el login (S6).
+
+    El notificador ya es fail-open; este guard cubre cualquier error no
+    previsto (incluido el de la propia sesión de BD).
+    """
+    try:
+        await pending_notifier.notify_if_due()
+    except Exception:  # noqa: BLE001 — S6: la solicitud nunca falla por el aviso
+        logger.error("Falló el aviso de solicitudes pendientes", exc_info=True)
+
+
 @router.get("/callback")
 async def google_callback(
     code: str,
     request: Request,
     state: str = "",
     auth_service: AuthService = Depends(get_auth_service),
+    pending_notifier: PendingRequestNotifier = Depends(get_pending_request_notifier),
 ):
     try:
         # Extraer el origin (sitio de origen) del redirect_to antes de procesar
@@ -259,12 +280,19 @@ async def google_callback(
             except (json.JSONDecodeError, TypeError):
                 pass
 
-        user, internal_token, expires_in = await auth_service.process_google_login(
-            code=code,
-            redirect_uri=REDIRECT_URI,
-            origin=origin,
-            location=extract_request_location(request),
-        )
+        try:
+            user, internal_token, expires_in = await auth_service.process_google_login(
+                code=code,
+                redirect_uri=REDIRECT_URI,
+                origin=origin,
+                location=extract_request_location(request),
+            )
+        except HTTPException as exc:
+            # S3: una solicitud nueva despierta el aviso a los administradores.
+            # S6: fail-open — el resultado del login no depende del correo.
+            if exc.detail == "PENDING_APPROVAL":
+                await _notify_pending_best_effort(pending_notifier)
+            raise
 
         # Login exitoso — setear cookie y redirigir
         is_prod = settings.is_production
