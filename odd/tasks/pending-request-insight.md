@@ -96,3 +96,18 @@ L8 (slices): 6 commits en `feat/pending-request-insight`, todos ≤ 400 líneas 
 Límite de slice de PR en ~400 líneas (AGENTS.md) ya superado por la rama completa, así que
 la entrega va como dos PRs encadenados: fecha/ubicación (2e46792, 12e2ffc, 1de7aec) y aviso
 por correo (14143bb, 41c9d35, 1e59cbf).
+
+L9 (entrega): el usuario eligió publicar como **6 PRs encadenados**, uno por commit salvo el
+último (frontend + evidencia ODD), para respetar el tope de 400 líneas por PR de AGENTS.md.
+La entrega sale **sin veredicto de la revisión nativa**: el proveedor rechazó el slot del
+reviewer (`json: unknown field "evidence"`) y `review.status` respondió después
+`capture-route-registration-rejected: selector-mismatch` con `automatic_retry: false`, sin
+continuación soportada. Decisión explícita del usuario, no un pase implícito; el defecto queda
+documentado en `odd/reports/gentle-ai-review-capture-defect.md` y la autoridad del lineage
+`review-863481b50e6db9bd` queda intacta y sin consumir.
+
+L10 (verificación en producción, pendiente al escribir esto): logs de arranque con
+"Columnas agregadas a users: ..."; las 4 columnas presentes en `information_schema.columns`;
+un pendiente real mostrando fecha + país; el correo llegando a las casillas de SUPERADMIN/ADMIN
+y un único correo cuando entran dos solicitudes en la misma hora. Rollback seguro: las columnas
+son aditivas y nullable, el código anterior las ignora.
