@@ -118,6 +118,27 @@ class User(Base):
         comment="Última dirección IP desde donde accedió",
     )
 
+    # ── Ubicación de la solicitud de acceso (feature pending-request-insight) ──
+    # Se captura una sola vez, al crear el usuario PENDING, desde las cabeceras
+    # del CDN. Es un hecho histórico: no se recalcula en cada login.
+    request_country = Column(
+        String(2),
+        nullable=True,
+        comment="País (ISO-3166-1 alpha-2) desde donde se solicitó el acceso",
+    )
+
+    request_city = Column(
+        String(128),
+        nullable=True,
+        comment="Ciudad desde donde se solicitó el acceso (cabecera del CDN)",
+    )
+
+    request_region = Column(
+        String(128),
+        nullable=True,
+        comment="Región/provincia desde donde se solicitó el acceso (cabecera del CDN)",
+    )
+
     login_count = Column(
         Integer,
         default=0,

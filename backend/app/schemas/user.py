@@ -20,6 +20,9 @@ class UserResponse(BaseModel):
     avatar_url: Optional[str] = None
     notes: Optional[str] = None
     last_ip: Optional[str] = None
+    request_country: Optional[str] = None
+    request_city: Optional[str] = None
+    request_region: Optional[str] = None
     login_count: int = 0
     tenant_id: Optional[str] = None
     created_at: datetime
