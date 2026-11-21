@@ -9,7 +9,7 @@ aprobación de acceso. Reglas de la feature approval-email:
   aprobación NUNCA falla por el correo (fail-open).
 """
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import httpx
 from sqlalchemy import func, select
@@ -22,6 +22,11 @@ from app.services.email.approval_email_template import (
     approval_html,
     approval_subject,
     approval_text,
+)
+from app.services.email.pending_request_email_template import (
+    pending_request_html,
+    pending_request_subject,
+    pending_request_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -110,4 +115,51 @@ class EmailService:
             )
         response.raise_for_status()
         logger.info("Correo de aprobación enviado a user %s (%s)", user.id, user.email)
+        return True
+
+    async def send_pending_request_email(
+        self,
+        recipients: List[str],
+        requests: List[User],
+        dashboard_url: Optional[str] = None,
+    ) -> bool:
+        """
+        Avisa a los administradores que hay solicitudes esperando autorización.
+
+        Returns:
+            True si Resend aceptó el correo; False si se omitió (sin API key,
+            sin destinatarios o sin solicitudes).
+
+        Raises:
+            httpx.HTTPError: fallo de red o respuesta no-2xx de Resend.
+        """
+        if not settings.resend_api_key:
+            logger.warning(
+                "RESEND_API_KEY sin configurar: aviso de %s solicitud(es) omitido",
+                len(requests),
+            )
+            return False
+        if not recipients or not requests:
+            return False
+
+        payload = {
+            "from": settings.emails_from,
+            "to": list(recipients),
+            "subject": pending_request_subject(len(requests)),
+            "html": pending_request_html(requests, dashboard_url),
+            "text": pending_request_text(requests, dashboard_url),
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                RESEND_API_URL,
+                headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+                json=payload,
+            )
+        response.raise_for_status()
+        logger.info(
+            "Aviso de %s solicitud(es) pendiente(s) enviado a %s",
+            len(requests),
+            ", ".join(recipients),
+        )
         return True
