@@ -30,7 +30,10 @@ _UNKNOWN_COUNTRY_CODES = frozenset({"", "XX", "T1"})
 
 _COUNTRY_HEADERS = ("CF-IPCountry", "X-Vercel-IP-Country")
 _CITY_HEADERS = ("CF-IPCity", "X-Vercel-IP-City")
-_REGION_HEADERS = ("CF-Region", "CF-IPRegion", "X-Vercel-IP-Country-Region")
+# Nombres reales de Cloudflare (Managed Transform "Add visitor location
+# headers") y su equivalente en Vercel. No existe un `CF-IPRegion`: la región
+# viaja en `cf-region`.
+_REGION_HEADERS = ("CF-Region", "X-Vercel-IP-Country-Region")
 
 
 @dataclass(frozen=True)
