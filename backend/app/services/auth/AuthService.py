@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from app.models.user import User
+from app.core.geo import RequestLocation
 from app.core.security import verify_password
 from app.interfaces.auth.IAuthService import IAuthService
 from app.interfaces.auth.ITokenService import ITokenService
@@ -107,7 +108,10 @@ class AuthService(IAuthService):
         return user
 
     async def authenticate_with_google(
-        self, token: str, origin: str
+        self,
+        token: str,
+        origin: str,
+        location: Optional[RequestLocation] = None,
     ) -> Tuple[User, str, int]:
         try:
             user_info = await self.oauth_service.verify_token(token)
@@ -139,6 +143,7 @@ class AuthService(IAuthService):
                         "status": UserStatus.PENDING, # 👈 cambiado
                         "is_active": False,           # 👈 cambiado
                         "origin": "google",
+                        **(location.as_user_fields() if location else {}),
                     }
                 )
                 # Nuevo usuario pendiente — no generar token todavía
@@ -214,7 +219,11 @@ class AuthService(IAuthService):
         return await self.token_service.revoke_token(token)
 
     async def process_google_login(
-        self, code: str, redirect_uri: str, origin: str = None
+        self,
+        code: str,
+        redirect_uri: str,
+        origin: str = None,
+        location: Optional[RequestLocation] = None,
     ) -> Tuple[User, str, int]:
         """
         Procesa un login con Google usando el Authorization Code Flow.
@@ -225,6 +234,9 @@ class AuthService(IAuthService):
             code: Authorization code de Google
             redirect_uri: URI de callback registrada
             origin: Sitio de origen (ej: "rincom", "nanatamoda") extraído del redirect_to
+            location: Ubicación observada desde las cabeceras del CDN. Se
+                persiste al crear el usuario PENDING; en logins de usuarios
+                existentes no se reescribe (es el hecho histórico original).
         """
         try:
             # Paso 1: intercambiar code por info del usuario (delega en OAuthService)
@@ -264,6 +276,7 @@ class AuthService(IAuthService):
                         "is_active": False,
                         "is_locked": False,
                         "origin": user_origin,
+                        **(location.as_user_fields() if location else {}),
                     }
                 )
 

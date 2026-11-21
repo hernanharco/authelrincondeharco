@@ -4,11 +4,12 @@ import logging
 from typing import List
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from app.api.v1.dependencies import get_auth_service
 from app.core.config import settings
+from app.core.geo import extract_request_location
 from app.services.auth.AuthService import AuthService
 
 router = APIRouter()
@@ -235,8 +236,9 @@ def _status_or_error_redirect(state: str, query: str) -> RedirectResponse:
 @router.get("/callback")
 async def google_callback(
     code: str,
+    request: Request,
     state: str = "",
-    auth_service: AuthService = Depends(get_auth_service)
+    auth_service: AuthService = Depends(get_auth_service),
 ):
     try:
         # Extraer el origin (sitio de origen) del redirect_to antes de procesar
@@ -261,6 +263,7 @@ async def google_callback(
             code=code,
             redirect_uri=REDIRECT_URI,
             origin=origin,
+            location=extract_request_location(request),
         )
 
         # Login exitoso — setear cookie y redirigir

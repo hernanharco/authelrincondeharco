@@ -4,6 +4,7 @@ Interface de Servicio de Autenticación - Principio de Segregación de Interface
 
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
+from app.core.geo import RequestLocation
 from app.models.user import User
 
 
@@ -36,7 +37,10 @@ class IAuthService(ABC):
 
     @abstractmethod
     async def authenticate_with_google(
-        self, token: str, origin: str
+        self,
+        token: str,
+        origin: str,
+        location: Optional[RequestLocation] = None,
     ) -> Tuple[User, str, int]:
         """
         Autentica un usuario con Google OAuth.
@@ -44,6 +48,8 @@ class IAuthService(ABC):
         Args:
             token: Token de Google
             origin: Origen de la autenticación
+            location: Ubicación observada desde las cabeceras del CDN; se
+                persiste si el usuario queda PENDING.
 
         Returns:
             Tupla con (usuario, token_jwt, expires_in)
