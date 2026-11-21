@@ -28,6 +28,46 @@ try {
 } catch (error) {
   console.error('Error:', error);
 }
+
+// ── Fecha y ubicación de la solicitud (S1/S2) ────────────────────
+// `created_at` es el instante en que se pidió la autorización. Se muestra en
+// es-ES y hora de Madrid. Sin dato: nunca se aproxima.
+const NO_DATE = 'sin fecha';
+const NO_LOCATION = 'sin ubicación';
+
+function formatRequestDate(value?: string | null): string {
+  if (!value) return NO_DATE;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return NO_DATE;
+  try {
+    const formatted = new Intl.DateTimeFormat('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Madrid',
+    }).format(date);
+    return `Solicitado el ${formatted}`;
+  } catch {
+    return NO_DATE;
+  }
+}
+
+function countryFlag(code?: string | null): string {
+  if (!code || code.length !== 2) return '';
+  const upper = code.toUpperCase();
+  const points = [...upper].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65);
+  return String.fromCodePoint(...points);
+}
+
+function formatRequestLocation(user: any): string {
+  const parts = [user.request_city, user.request_country].filter(Boolean);
+  if (parts.length === 0) return NO_LOCATION;
+  const flag = countryFlag(user.request_country);
+  const text = parts.join(', ');
+  return flag ? `${flag} ${text}` : text;
+}
 ---
 
 <DashboardLayout title="Usuarios Pendientes" pendingCount={pendingUsers.length}>
@@ -51,9 +91,23 @@ try {
               <div>
                 <h3 class="text-[#F9FAFB] font-semibold">{user.full_name || user.username}</h3>
                 <p class="text-sm text-[#9CA3AF]">{user.email}</p>
-                <span class="text-xs px-2 py-1 rounded bg-[#6366F1]/20 text-[#6366F1] mt-2 inline-block">
-                  {user.origin || 'Sistema'}
-                </span>
+                <div class="flex flex-wrap items-center gap-2 mt-2">
+                  <span class="text-xs px-2 py-1 rounded bg-[#6366F1]/20 text-[#6366F1]">
+                    {user.origin || 'Sistema'}
+                  </span>
+                  <span
+                    class="text-xs px-2 py-1 rounded bg-[#2D3148] text-[#9CA3AF]"
+                    title="Fecha en que solicitó la autorización"
+                  >
+                    {formatRequestDate(user.created_at)}
+                  </span>
+                  <span
+                    class="text-xs px-2 py-1 rounded bg-[#2D3148] text-[#9CA3AF]"
+                    title="Ubicación desde donde pidió la autorización"
+                  >
+                    {formatRequestLocation(user)}
+                  </span>
+                </div>
               </div>
             </div>
             <div class="flex space-x-2">

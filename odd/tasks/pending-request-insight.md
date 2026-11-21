@@ -54,10 +54,10 @@ por un fallo se reintentan en la siguiente ventana.
 
 ## Tasks
 
-- [ ] T1 (S1, S2) Captura y persistencia de la ubicación + campos en `UserResponse` — commit 1
-- [ ] T2 (S3, S4, S5, S6) Correo de aviso a administradores con agrupación de 1 h — commit 2
-- [ ] T3 (S1, S2) Fecha y ubicación en la tarjeta de `/dashboard/pending` — commit 3
-- [ ] T4 (S1-S6) Verificación: tests + suite completa
+- [x] T1 (S1, S2) Captura y persistencia de la ubicación + campos en `UserResponse` — commit 2e46792
+- [x] T2 (S3, S4, S5, S6) Correo de aviso a administradores con agrupación de 1 h — commit 41c9d35 (+ plantilla 14143bb)
+- [x] T3 (S1, S2) Fecha y ubicación en la tarjeta de `/dashboard/pending` — commit 1de7aec
+- [x] T4 (S1-S6) Verificación: tests + suite completa
 
 ## Log
 
@@ -85,3 +85,29 @@ L6: el usuario pregunta la opinión sobre el diseño ("o que opinas"). Respuesta
 solicitud de una ráfaga sin avisar; (b) país siempre disponible con `CF-IPCountry`, ciudad
 cuando se active la Managed Transform; (c) los pendientes existentes mostrarán "sin
 ubicación": no hay IP histórica y no se aproxima.
+
+L7 (verificación): suite completa del backend en verde con cobertura 88% (gates 80%).
+`astro build` compila la página. Defecto encontrado y corregido por sus tests: un mapping
+de cabeceras vacío se trataba como "sin request" y perdía también la IP del cliente.
+Incidente de método: dos runs de pytest en paralelo comparten `backend/test.db` y sus
+fixtures borran tablas por test, así que producen errores fantasma; los runs van en serie.
+
+L8 (slices): 6 commits en `feat/pending-request-insight`, todos ≤ 400 líneas cambiadas.
+Límite de slice de PR en ~400 líneas (AGENTS.md) ya superado por la rama completa, así que
+la entrega va como dos PRs encadenados: fecha/ubicación (2e46792, 12e2ffc, 1de7aec) y aviso
+por correo (14143bb, 41c9d35, 1e59cbf).
+
+L9 (entrega): el usuario eligió publicar como **6 PRs encadenados**, uno por commit salvo el
+último (frontend + evidencia ODD), para respetar el tope de 400 líneas por PR de AGENTS.md.
+La entrega sale **sin veredicto de la revisión nativa**: el proveedor rechazó el slot del
+reviewer (`json: unknown field "evidence"`) y `review.status` respondió después
+`capture-route-registration-rejected: selector-mismatch` con `automatic_retry: false`, sin
+continuación soportada. Decisión explícita del usuario, no un pase implícito; el defecto queda
+documentado en `odd/reports/gentle-ai-review-capture-defect.md` y la autoridad del lineage
+`review-863481b50e6db9bd` queda intacta y sin consumir.
+
+L10 (verificación en producción, pendiente al escribir esto): logs de arranque con
+"Columnas agregadas a users: ..."; las 4 columnas presentes en `information_schema.columns`;
+un pendiente real mostrando fecha + país; el correo llegando a las casillas de SUPERADMIN/ADMIN
+y un único correo cuando entran dos solicitudes en la misma hora. Rollback seguro: las columnas
+son aditivas y nullable, el código anterior las ignora.
