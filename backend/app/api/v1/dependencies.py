@@ -31,6 +31,7 @@ from app.services.company.CompanyProfileService import CompanyProfileService
 from app.repositories.TenantRepository import TenantRepository
 from app.services.tenant.TenantService import TenantService
 from app.services.membership.MembershipService import MembershipService
+from app.services.email.PendingRequestNotifier import PendingRequestNotifier
 from app.repositories.ModuleRepository import ModuleRepository
 from app.services.module.ModuleService import ModuleService
 from app.repositories.TenantModuleRepository import TenantModuleRepository
@@ -102,6 +103,13 @@ def get_tenant_service(
 
 def get_membership_service(db: AsyncSession = Depends(get_db)) -> MembershipService:
     return MembershipService(db)
+
+
+def get_pending_request_notifier(
+    db: AsyncSession = Depends(get_db),
+) -> PendingRequestNotifier:
+    """Aviso a administradores cuando entra una solicitud de acceso."""
+    return PendingRequestNotifier(db)
 
 
 def get_module_service(

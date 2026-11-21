@@ -139,6 +139,12 @@ class User(Base):
         comment="Región/provincia desde donde se solicitó el acceso (cabecera del CDN)",
     )
 
+    approval_notified_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Último aviso por correo a los administradores que incluyó esta solicitud",
+    )
+
     login_count = Column(
         Integer,
         default=0,
